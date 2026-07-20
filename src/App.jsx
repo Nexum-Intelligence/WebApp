@@ -1,0 +1,1620 @@
+import React, { useEffect, useMemo, useRef, useSyncExternalStore, useState } from "react";
+import {
+  blogPosts,
+  faqs,
+  footerLinks,
+  agentPhases,
+  navItems,
+  processSteps,
+  services,
+  testimonials,
+} from "./content.js";
+import nexumLogo from "./assets/source-logo-wide.png";
+import badgeSpark from "./assets/badge-chip.svg";
+import whatWeBuildDashboard from "./assets/framer-images/what-we-build-dashboard-platform.png";
+import reviewWomanAvatar from "./assets/framer-images/what-we-build-woman-yellow.webp";
+import systemsArchitectureVisual from "./assets/framer-images/ChatGPT Image 20. Juli 2026, 15_35_02.png";
+import systemsStrategyVisual from "./assets/framer-images/ChatGPT Image 20. Juli 2026, 15_05_23.png";
+import systemsPerformanceVisual from "./assets/framer-images/ChatGPT Image 20. Juli 2026, 16_05_11.png";
+import scenePresenter from "./assets/framer-images/Analyze.png";
+import sceneAiWindow from "./assets/framer-images/Create.png";
+import sceneConsulting from "./assets/framer-images/Operate.png";
+import abstractDashboard from "./assets/framer-images/Optimize.png";
+import abstractSystem from "./assets/framer-images/Execute.png";
+import phoneVertical from "./assets/framer-images/what-we-build-dashboard-platform.png";
+import melinaKuehnPortrait from "./assets/founders/melina-kuehn.jpeg";
+import luiseRimolaPortrait from "./assets/founders/luise-rimola.jpeg";
+import googleLogo from "./assets/brand/google-g.svg";
+import microsoftLogo from "./assets/brand/microsoft.svg";
+import nexumModelMeshUrl from "./assets/nexum-model-mesh.json?url";
+
+function subscribeToLocation(callback) {
+  window.addEventListener("popstate", callback);
+  window.addEventListener("hashchange", callback);
+  window.addEventListener("locationchange", callback);
+  return () => {
+    window.removeEventListener("popstate", callback);
+    window.removeEventListener("hashchange", callback);
+    window.removeEventListener("locationchange", callback);
+  };
+}
+
+function currentLocation() {
+  if (typeof window === "undefined") return "/";
+  return `${window.location.pathname}${window.location.hash}`;
+}
+
+function useLocationPath() {
+  return useSyncExternalStore(subscribeToLocation, currentLocation, () => "/");
+}
+
+function navigateTo(to) {
+  const next = new URL(to, window.location.origin);
+  window.history.pushState({}, "", `${next.pathname}${next.search}${next.hash}`);
+  window.dispatchEvent(new Event("locationchange"));
+  if (next.hash) {
+    window.setTimeout(() => document.getElementById(next.hash.slice(1))?.scrollIntoView(), 0);
+  } else {
+    window.scrollTo({ top: 0 });
+  }
+}
+
+function Link({ to, children, onClick, ...props }) {
+  return (
+    <a
+      href={to}
+      onClick={(event) => {
+        onClick?.(event);
+        if (
+          event.defaultPrevented ||
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) {
+          return;
+        }
+        event.preventDefault();
+        navigateTo(to);
+      }}
+      {...props}
+    >
+      {children}
+    </a>
+  );
+}
+
+function NavLink({ to, children, className = "", ...props }) {
+  const current = useLocationPath().split("#")[0] || "/";
+  const active = current === to;
+  return (
+    <Link to={to} className={`${className} ${active ? "active" : ""}`.trim()} {...props}>
+      {children}
+    </Link>
+  );
+}
+
+function Icon({ size = 20, children }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+
+const ArrowRight = (props) => <Icon {...props}><path d="M5 12h14" /><path d="m13 5 7 7-7 7" /></Icon>;
+const Bot = (props) => <Icon {...props}><rect x="5" y="9" width="14" height="10" rx="3" /><path d="M12 5v4" /><path d="M9 14h.01" /><path d="M15 14h.01" /></Icon>;
+const BrainCircuit = (props) => <Icon {...props}><path d="M9 3a4 4 0 0 0-4 4v1a4 4 0 0 0 0 8v1a4 4 0 0 0 4 4" /><path d="M15 3a4 4 0 0 1 4 4v1a4 4 0 0 1 0 8v1a4 4 0 0 1-4 4" /><path d="M9 8h6" /><path d="M9 16h6" /><path d="M12 8v8" /></Icon>;
+const Check = (props) => <Icon {...props}><path d="m20 6-11 11-5-5" /></Icon>;
+const ChevronLeft = (props) => <Icon {...props}><path d="m15 18-6-6 6-6" /></Icon>;
+const Cpu = (props) => <Icon {...props}><rect x="7" y="7" width="10" height="10" rx="2" /><path d="M9 1v3" /><path d="M15 1v3" /><path d="M9 20v3" /><path d="M15 20v3" /><path d="M20 9h3" /><path d="M20 15h3" /><path d="M1 9h3" /><path d="M1 15h3" /></Icon>;
+const LayoutDashboard = (props) => <Icon {...props}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></Icon>;
+const Mail = (props) => <Icon {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></Icon>;
+const MapPin = (props) => <Icon {...props}><path d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11Z" /><circle cx="12" cy="10" r="2.5" /></Icon>;
+const Menu = (props) => <Icon {...props}><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></Icon>;
+const Phone = (props) => <Icon {...props}><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.8 19.8 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.9.32 1.77.6 2.6a2 2 0 0 1-.45 2.11L8 9.64a16 16 0 0 0 6.36 6.36l1.21-1.21a2 2 0 0 1 2.11-.45c.83.28 1.7.48 2.6.6A2 2 0 0 1 22 16.92Z" /></Icon>;
+const ShieldCheck = (props) => <Icon {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></Icon>;
+const Sparkles = (props) => <Icon {...props}><path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6Z" /><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z" /></Icon>;
+const Workflow = (props) => <Icon {...props}><rect x="3" y="4" width="6" height="6" rx="1" /><rect x="15" y="14" width="6" height="6" rx="1" /><path d="M9 7h3a4 4 0 0 1 4 4v3" /><path d="M12 11h4" /></Icon>;
+const X = (props) => <Icon {...props}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></Icon>;
+const Zap = (props) => <Icon {...props}><path d="M13 2 3 14h8l-1 8 11-13h-8z" /></Icon>;
+
+const systemsToolsItems = [
+  {
+    title: "Custom-Built Architecture",
+    text: "We design every AI system around your exact business model and workflows. No generic setups or reused frameworks. Our architecture integrates cleanly with your tools, data, and operations.",
+    image: systemsArchitectureVisual,
+  },
+  {
+    title: "Strategy-First Approach",
+    text: "Every project begins with a deep analysis of your processes, bottlenecks, and growth goals before automation is built.",
+    image: systemsStrategyVisual,
+  },
+  {
+    title: "Business-Focused AI",
+    text: "Our systems are built with performance and revenue in mind, ensuring every workflow supports business growth.",
+    image: whatWeBuildDashboard,
+  },
+  {
+    title: "Long-Term Partnership Model",
+    text: "NEXUM continuously monitors performance, refines workflows, and evolves your AI infrastructure as you scale.",
+    image: abstractSystem,
+  },
+  {
+    title: "Performance-Driven Execution",
+    text: "Every deployment is tracked, measured, and optimized to maintain consistent long-term operational results.",
+    image: systemsPerformanceVisual,
+  },
+];
+
+const reviewAvatars = [
+  systemsStrategyVisual,
+  reviewWomanAvatar,
+  scenePresenter,
+  whatWeBuildDashboard,
+];
+
+const founders = [
+  {
+    name: "Melina Kühn",
+    role: "CEO & CMO",
+    description:
+      "Melina leads NEXUM Intelligence's corporate strategy, product vision, brand development, go-to-market direction and growth strategy. She brings experience in AI transformation, business development, change management and marketing. She is also pursuing a doctorate in Human-AI Interactions with a focus on the acceptance of AI agents in companies, connecting scientific expertise with entrepreneurial practice.",
+    image: melinaKuehnPortrait,
+    imagePosition: "50% 38%",
+  },
+  {
+    name: "Luise Rimola",
+    role: "CEO & CTO",
+    description:
+      "Luise leads NEXUM Intelligence's technical strategy, product development, IT architecture and operational execution. She brings experience in company leadership, software development, process automation and IT security, with more than three years in Identity & Access Management and IT security. Her focus is on scalable AI and automation solutions, intelligent agent system integration and the secure technical implementation of complex business processes.",
+    image: luiseRimolaPortrait,
+    imagePosition: "47% 31%",
+  },
+];
+
+function ParticleSphere() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    const context = canvas.getContext("2d");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let animationFrame = 0;
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let disposed = false;
+    const pointer = {
+      active: false,
+      x: 0,
+      y: 0,
+      targetX: 0,
+      targetY: 0,
+      strength: 0,
+    };
+    let modelTriangles = [];
+
+    fetch(nexumModelMeshUrl)
+      .then((response) => response.json())
+      .then((mesh) => {
+        if (disposed) return;
+        modelTriangles = mesh.triangles || [];
+        draw(window.performance?.now?.() ?? 0);
+      })
+      .catch(() => {
+        modelTriangles = [];
+      });
+
+    const pointCount = 7000;
+    const points = Array.from({ length: pointCount }, (_, index) => {
+      const offset = 2 / pointCount;
+      const y = index * offset - 1 + offset / 2;
+      const radius = Math.sqrt(1 - y * y);
+      const angle = index * Math.PI * (3 - Math.sqrt(5));
+      return {
+        x: Math.cos(angle) * radius,
+        y,
+        z: Math.sin(angle) * radius,
+        pulse: (index % 17) / 17,
+      };
+    });
+
+    function syncPointerFromClient(clientX, clientY) {
+      const bounds = canvas.getBoundingClientRect();
+      const nextX = clientX - bounds.left;
+      const nextY = clientY - bounds.top;
+      const inside = nextX >= 0 && nextX <= bounds.width && nextY >= 0 && nextY <= bounds.height;
+      pointer.targetX = Math.min(Math.max(nextX, 0), bounds.width);
+      pointer.targetY = Math.min(Math.max(nextY, 0), bounds.height);
+      pointer.active = inside;
+      if (reducedMotion.matches) {
+        pointer.x = pointer.targetX;
+        pointer.y = pointer.targetY;
+        pointer.strength = inside ? 1 : 0;
+        draw(window.performance?.now?.() ?? 0);
+      }
+    }
+
+    function updatePointer(event) {
+      syncPointerFromClient(event.clientX, event.clientY);
+    }
+
+    function releasePointer() {
+      pointer.active = false;
+      if (reducedMotion.matches) {
+        pointer.strength = 0;
+        draw(window.performance?.now?.() ?? 0);
+      }
+    }
+
+    function resize() {
+      const bounds = canvas.getBoundingClientRect();
+      width = bounds.width;
+      height = bounds.height;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!pointer.active) {
+        pointer.x = width / 2;
+        pointer.y = height / 2;
+        pointer.targetX = pointer.x;
+        pointer.targetY = pointer.y;
+      }
+    }
+
+    function projectModelPoint(point, centerX, centerY, modelScale, floatY, sinY, cosY, sinX, cosX) {
+      const x1 = point[0] * cosY - point[2] * sinY;
+      const z1 = point[0] * sinY + point[2] * cosY;
+      const y1 = point[1] * cosX - z1 * sinX;
+      const z2 = point[1] * sinX + z1 * cosX;
+      const perspective = 1.22 / (1.68 - z2 * 0.54);
+      return {
+        x: centerX + x1 * modelScale * perspective,
+        y: centerY + floatY + y1 * modelScale * perspective,
+        z: z2,
+      };
+    }
+
+    function drawModelMesh(time, centerX, centerY, sphereRadius, sinY, cosY, sinX, cosX) {
+      if (!modelTriangles.length) return;
+
+      const modelScale = sphereRadius * 1.42;
+      const floatY = reducedMotion.matches ? 0 : Math.sin(time * 0.0012) * sphereRadius * 0.012;
+      context.save();
+      context.globalCompositeOperation = "lighter";
+
+      const halo = context.createRadialGradient(centerX, centerY + floatY, sphereRadius * 0.08, centerX, centerY + floatY, sphereRadius * 0.68);
+      halo.addColorStop(0, "rgba(42, 84, 255, 0.16)");
+      halo.addColorStop(0.52, "rgba(76, 77, 255, 0.07)");
+      halo.addColorStop(1, "rgba(5, 6, 11, 0)");
+      context.fillStyle = halo;
+      context.beginPath();
+      context.ellipse(centerX, centerY + floatY, sphereRadius * 0.72, sphereRadius * 0.48, -0.08, 0, Math.PI * 2);
+      context.fill();
+
+      const projectedTriangles = modelTriangles.map((triangle) => {
+        const a = projectModelPoint(triangle[0], centerX, centerY, modelScale, floatY, sinY, cosY, sinX, cosX);
+        const b = projectModelPoint(triangle[1], centerX, centerY, modelScale, floatY, sinY, cosY, sinX, cosX);
+        const c = projectModelPoint(triangle[2], centerX, centerY, modelScale, floatY, sinY, cosY, sinX, cosX);
+        return {
+          depth: (a.z + b.z + c.z) / 3,
+          points: [a, b, c],
+        };
+      }).sort((a, b) => a.depth - b.depth);
+
+      context.lineWidth = Math.max(0.35, sphereRadius * 0.0017);
+      context.shadowBlur = sphereRadius * 0.04;
+      context.shadowColor = "rgba(80, 104, 255, 0.45)";
+
+      for (const triangle of projectedTriangles) {
+        const [a, b, c] = triangle.points;
+        const area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        const front = area > 0;
+        const depth = Math.max(0, Math.min(1, (triangle.depth + 0.48) / 0.96));
+        const blue = Math.round(180 + depth * 48);
+        const violet = Math.round(120 + depth * 86);
+        const alpha = front ? 0.18 + depth * 0.24 : 0.045 + depth * 0.07;
+        context.fillStyle = `rgba(${Math.round(38 + depth * 28)}, ${blue}, ${violet}, ${alpha})`;
+        context.strokeStyle = `rgba(194, 212, 255, ${front ? 0.12 + depth * 0.16 : 0.035})`;
+        context.beginPath();
+        context.moveTo(a.x, a.y);
+        context.lineTo(b.x, b.y);
+        context.lineTo(c.x, c.y);
+        context.closePath();
+        context.fill();
+        if (front && depth > 0.18) {
+          context.stroke();
+        }
+      }
+
+      context.restore();
+    }
+
+    function draw(time = 0) {
+      context.clearRect(0, 0, width, height);
+      const cx = width / 2;
+      const cy = height / 2;
+      const sphereRadius = Math.min(width, height) * 0.49;
+      pointer.x += (pointer.targetX - pointer.x) * 0.26;
+      pointer.y += (pointer.targetY - pointer.y) * 0.26;
+      pointer.strength += ((pointer.active ? 1 : 0) - pointer.strength) * 0.18;
+      const cursorX = (pointer.x - cx) / sphereRadius;
+      const cursorY = (pointer.y - cy) / sphereRadius;
+      const baseRotateY = reducedMotion.matches ? 0.75 : time * 0.00018;
+      const baseRotateX = reducedMotion.matches ? -0.28 : -0.28 + Math.sin(time * 0.00024) * 0.08;
+      const rotateY = baseRotateY + cursorX * pointer.strength * 0.52;
+      const rotateX = baseRotateX - cursorY * pointer.strength * 0.38;
+      const sinY = Math.sin(rotateY);
+      const cosY = Math.cos(rotateY);
+      const sinX = Math.sin(rotateX);
+      const cosX = Math.cos(rotateX);
+
+      drawModelMesh(time, cx, cy, sphereRadius, sinY, cosY, sinX, cosX);
+
+      context.save();
+      context.globalCompositeOperation = "lighter";
+
+      for (const point of points) {
+        const x1 = point.x * cosY - point.z * sinY;
+        const z1 = point.x * sinY + point.z * cosY;
+        const y1 = point.y * cosX - z1 * sinX;
+        const z2 = point.y * sinX + z1 * cosX;
+        const perspective = 1.18 / (1.72 - z2 * 0.48);
+        let x = cx + x1 * sphereRadius * perspective;
+        let y = cy + y1 * sphereRadius * perspective;
+        const depth = (z2 + 1) / 2;
+        let interactionImpact = 0;
+        if (pointer.strength > 0.01) {
+          const dx = x - pointer.x;
+          const dy = y - pointer.y;
+          const distance = Math.hypot(dx, dy) || 1;
+          const influence = Math.max(0, 1 - distance / (sphereRadius * 0.42));
+          if (influence > 0 && depth > 0.08) {
+            interactionImpact = influence * influence * pointer.strength;
+            const force = interactionImpact * (52 + depth * 64) * 0.9;
+            const swirl = interactionImpact * (6 + depth * 14);
+            x += (dx / distance) * force;
+            y += (dy / distance) * force;
+            x += (-dy / distance) * swirl;
+            y += (dx / distance) * swirl;
+          }
+        }
+        const shimmer = reducedMotion.matches ? 0 : Math.sin(time * 0.002 + point.pulse * 6.28) * 0.08;
+        const alpha = Math.max(0.05, (0.18 + depth * 0.56 + shimmer) * (1 - interactionImpact * 0.58));
+        const size = (0.42 + depth * 0.72) * (1 - interactionImpact * 0.1);
+
+        context.fillStyle = `rgba(245, 247, 255, ${alpha})`;
+        context.beginPath();
+        context.arc(x, y, size, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      context.restore();
+
+      if (!reducedMotion.matches) {
+        animationFrame = window.requestAnimationFrame(draw);
+      }
+    }
+
+    resize();
+    draw(0);
+    window.addEventListener("resize", resize);
+    window.addEventListener("pointermove", updatePointer);
+    window.addEventListener("pointerdown", updatePointer);
+    window.addEventListener("mousemove", updatePointer);
+    window.addEventListener("blur", releasePointer);
+    canvas.addEventListener("pointermove", updatePointer);
+    canvas.addEventListener("pointerenter", updatePointer);
+    canvas.addEventListener("pointerdown", updatePointer);
+    canvas.addEventListener("pointerleave", releasePointer);
+    if (!reducedMotion.matches) {
+      animationFrame = window.requestAnimationFrame(draw);
+    }
+
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("pointermove", updatePointer);
+      window.removeEventListener("pointerdown", updatePointer);
+      window.removeEventListener("mousemove", updatePointer);
+      window.removeEventListener("blur", releasePointer);
+      canvas.removeEventListener("pointermove", updatePointer);
+      canvas.removeEventListener("pointerenter", updatePointer);
+      canvas.removeEventListener("pointerdown", updatePointer);
+      canvas.removeEventListener("pointerleave", releasePointer);
+    };
+  }, []);
+
+  return (
+    <div className="particle-sphere" aria-hidden="true">
+      <canvas ref={canvasRef} />
+    </div>
+  );
+}
+
+function HeroSection() {
+  return (
+    <section className="hero reference-hero">
+      <div className="hero-copy">
+        <Link className="hero-badge hero-platform-chip" to="/potential-analysis">
+          <span className="hero-badge-icon"><img src={badgeSpark} alt="" /></span>
+          Explore the Autonomous Agent Platform
+        </Link>
+        <h1>
+          Build AI-Native<br />
+          Business Systems. Not<br />
+          Just Software.
+        </h1>
+        <p className="hero-statement">
+          NEXUM Intelligence brings a new era of AI into your business: autonomous agent
+          systems that diagnose challenges, design strategic solutions, and execute them
+          end-to-end. Our agents do not stop at insights - they build models, create assets,
+          run workflows, and continuously optimize your operations for measurable growth.
+        </p>
+        <div className="hero-actions">
+          <a className="primary-button glow-button" href="https://cal.com/" target="_blank" rel="noreferrer">
+            BOOK A STRATEGY CALL
+          </a>
+        </div>
+      </div>
+      <ParticleSphere />
+    </section>
+  );
+}
+
+function Header() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <header className="site-header">
+      <Link className="brand nexum-brand" to="/" aria-label="NEXUM Intelligence home">
+        <img src={nexumLogo} alt="NEXUM Intelligence" />
+      </Link>
+      <nav className="desktop-nav" aria-label="Primary navigation">
+        {navItems.filter((item) => item.label !== "Contact Us").map((item) => (
+          <NavLink key={item.label} to={item.href}>
+            {item.label.toUpperCase()}
+          </NavLink>
+        ))}
+      </nav>
+      <Link className="header-cta glow-button" to="/contact">CONTACT US</Link>
+      <button className="menu-button" onClick={() => setOpen(true)} aria-label="Open menu">
+        <Menu size={22} />
+      </button>
+      {open && (
+        <div className="mobile-menu">
+          <button className="menu-close" onClick={() => setOpen(false)} aria-label="Close menu">
+            <X size={22} />
+          </button>
+          {navItems.map((item) =>
+            item.href.startsWith("/#") ? (
+              <a key={item.label} href={item.href} onClick={() => setOpen(false)}>
+                {item.label}
+              </a>
+            ) : (
+              <NavLink key={item.label} to={item.href} onClick={() => setOpen(false)}>
+                {item.label}
+              </NavLink>
+            )
+          )}
+        </div>
+      )}
+    </header>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="footer">
+      <div className="footer-inner">
+        <div>
+          <Link className="brand nexum-brand footer-brand" to="/">
+            <img src={nexumLogo} alt="NEXUM Intelligence" />
+          </Link>
+          <p>Stop managing tasks. Start managing systems.</p>
+        </div>
+        <div className="footer-nav">
+          <div className="footer-links">
+            {footerLinks.map((link) => (
+              <Link key={link.label} to={link.href}>
+                {link.label}
+              </Link>
+            ))}
+            <Link to="/legal/privacy-policy">Privacy Policy</Link>
+            <Link to="/legal/cookie-policy">Cookie Policy</Link>
+          </div>
+          <Link className="footer-cta glow-button" to="/agent-platform">
+            AGENT PLATFORM
+          </Link>
+        </div>
+      </div>
+      <div className="copyright">© 2026 NEXUM Intelligence. All rights reserved.</div>
+    </footer>
+  );
+}
+
+function Shell({ children }) {
+  return (
+    <>
+      <Header />
+      {children}
+      <Footer />
+    </>
+  );
+}
+
+function SectionIntro({ label, title, text, align = "center" }) {
+  return (
+    <div className={`section-intro ${align}`}>
+      {label && <p className="section-label">{label}</p>}
+      <h2>{title}</h2>
+      {text && <p>{text}</p>}
+    </div>
+  );
+}
+
+function TrustImpactSection() {
+  return (
+    <section id="impact" className="impact-section">
+      <div className="impact-inner">
+        <span className="outline-pill">ABOUT</span>
+        <h2>Trust &amp; Impact</h2>
+        <div className="impact-copy">
+          <p>Real Systems.<br />Real Impact.</p>
+          <span className="impact-arrow" aria-hidden="true" />
+          <p>We don't experiment with AI.<br />We engineer production-ready intelligence.</p>
+        </div>
+        <div className="impact-stats-grid">
+          {[
+            ["40% Average", "Workflow Automation", <Workflow size={50} />],
+            ["3x Faster", "Operational Output", <Zap size={52} />],
+            ["24/7 AI Execution", "& Overhead", <RefreshIcon />],
+            ["Enterprise-Level", "Security & Scalability", <ShieldCheck size={52} />],
+          ].map(([top, bottom, icon]) => (
+            <article className="impact-stat-card" key={`${top}-${bottom}`}>
+              <span className="stat-icon">{icon}</span>
+              <strong>{top}<br />{bottom}</strong>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function KeywordMarquee() {
+  const mutedTerms = ["BRANDING", "UI DESIGN", "Creative Digital", "BUSINESS CONSULTING", "PPC", "SEO"];
+  const heroTerms = ["AUTOMATION", "AI AGENTS", "STRATEGY", "INTELLIGENCE"];
+  const renderTerms = (terms, repeats = 3) =>
+    Array.from({ length: repeats }, (_, repeat) => (
+      <React.Fragment key={repeat}>
+        {terms.map((term) => (
+          <React.Fragment key={`${repeat}-${term}`}>
+            <span>{term}</span>
+            <b>✦</b>
+          </React.Fragment>
+        ))}
+      </React.Fragment>
+    ));
+
+  return (
+    <div className="keyword-marquee" aria-hidden="true">
+      <div className="keyword-row muted-row">
+        {renderTerms(mutedTerms, 4)}
+      </div>
+      <div className="keyword-row hero-row">
+        {renderTerms(heroTerms, 4)}
+      </div>
+    </div>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <Icon size={52}>
+      <path d="M20 11a8 8 0 1 0 1.2 6" />
+      <path d="M20 5v6h-6" />
+    </Icon>
+  );
+}
+
+function WhatWeBuildSection({ standalone = false }) {
+  return (
+    <section id="build" className={`build-showcase ${standalone ? "page-section" : ""}`}>
+      <div className="build-title">
+        <h2 className="build-heading">
+          <span>NEXUM Intelligence Builds</span>
+          <span>AI Systems That Don&apos;t</span>
+          <span>Just Assist - They Operate.</span>
+        </h2>
+        <span className="asterisk" aria-hidden="true">*</span>
+      </div>
+      <div className="build-layout">
+        <article className="build-visual-card">
+          <span className="outline-pill">WHY NEXUM INTELLIGENCE</span>
+          <h3>What We Build</h3>
+          <img src={whatWeBuildDashboard} alt="AI operations dashboard visual" />
+        </article>
+        <div className="build-service-list">
+          {services.map((service, index) => (
+            <article className="build-service-row" key={service.title} tabIndex={0}>
+              <span className="service-line-icon">
+                {index === 0 && <Workflow size={48} />}
+                {index === 1 && <Bot size={48} />}
+                {index === 2 && <FunnelIcon />}
+                {index === 3 && <LayoutDashboard size={48} />}
+              </span>
+              <div>
+                <h3>{service.title}</h3>
+                <p>{service.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SystemsToolsSection() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeItem = systemsToolsItems[activeIndex];
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (reducedMotion.matches) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % systemsToolsItems.length);
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  return (
+    <section id="systems-tools" className="systems-tools-section">
+      <div className="systems-tools-head">
+        <div>
+          <span className="outline-pill">WHY NEXUM INTELLIGENCE</span>
+          <h2>
+            We Build Systems.
+            <br />
+            Others Build Tools.
+          </h2>
+        </div>
+        <div className="systems-tools-copy">
+          <p>Most agencies deliver<br />automation tools.</p>
+          <p>We deliver<br />intelligent ecosystems.</p>
+        </div>
+      </div>
+
+      <div className="systems-tools-panel">
+        <div className="systems-tools-tabs" role="tablist" aria-label="NEXUM system advantages">
+          {systemsToolsItems.map((item, index) => (
+            <button
+              className={`systems-tool-tab ${activeIndex === index ? "active" : ""}`}
+              type="button"
+              role="tab"
+              aria-selected={activeIndex === index}
+              key={item.title}
+              onClick={() => setActiveIndex(index)}
+              onFocus={() => setActiveIndex(index)}
+              onMouseEnter={() => setActiveIndex(index)}
+            >
+              {item.title}
+            </button>
+          ))}
+        </div>
+
+        <article className="systems-tools-card">
+          <img src={activeItem.image} alt={`${activeItem.title} visual`} />
+          <h3>{activeItem.title}</h3>
+          <p>{activeItem.text}</p>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function FunnelIcon() {
+  return (
+    <Icon size={48}>
+      <path d="M4 5h16l-6 7v6l-4 2v-8z" />
+      <circle cx="12" cy="16" r="1" />
+    </Icon>
+  );
+}
+
+function HowItWorksSection({ standalone = false }) {
+  const workImages = [scenePresenter, sceneAiWindow, abstractSystem, abstractDashboard, sceneConsulting];
+
+  return (
+    <section id="works" className={`work-steps-section ${standalone ? "page-section" : ""}`}>
+      <span className="outline-pill">WORK</span>
+      <h2>How NEXUM Intelligence Works</h2>
+      {!standalone && (
+        <div className="work-actions">
+          <Link className="secondary-button" to="/agent-platform">Get to know our AI agents</Link>
+        </div>
+      )}
+      <div className="work-step-panel">
+        {processSteps.map(([num, title, text], index) => (
+          <article className="work-step" key={title} tabIndex={0}>
+            <div>
+              <span>{num}</span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </div>
+            <img
+              src={workImages[index] || sceneConsulting}
+              alt={`${title} process visual`}
+            />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InfrastructureSection() {
+  const [activeFeature, setActiveFeature] = useState(0);
+  const infrastructureFeatures = [
+    {
+      label: "Centralized AI Workflow Control",
+      image: abstractSystem,
+      alt: "Abstract AI workflow interface",
+    },
+    {
+      label: "Prompt & Model Management",
+      image: sceneAiWindow,
+      alt: "AI model management dashboard",
+    },
+    {
+      label: "Performance Monitoring Dashboard",
+      image: abstractDashboard,
+      alt: "Performance analytics dashboard",
+    },
+    {
+      label: "Secure Data Layer",
+      image: phoneVertical,
+      alt: "Secure mobile data interface",
+    },
+    {
+      label: "Continuous System Optimization",
+      image: sceneConsulting,
+      alt: "AI operations optimization visual",
+    },
+  ];
+  const activeItem = infrastructureFeatures[activeFeature];
+
+  return (
+    <section className="section infrastructure">
+      <SectionIntro
+        title="Your AI Infrastructure. Managed. Scalable. Intelligent."
+        text="Centralized AI workflow control, prompt and model management, performance monitoring, secure data layers, and continuous optimization."
+      />
+      <div className="dashboard-mock">
+        <div className="dashboard-tabs">
+          {infrastructureFeatures.map((item, index) => (
+            <button
+              className={`dash-row ${activeFeature === index ? "active" : ""}`}
+              type="button"
+              key={item.label}
+              onClick={() => setActiveFeature(index)}
+              onFocus={() => setActiveFeature(index)}
+              onMouseEnter={() => setActiveFeature(index)}
+            >
+              <Check size={18} /> {item.label}
+            </button>
+          ))}
+        </div>
+        <figure className="dashboard-visual-panel">
+          <img src={activeItem.image} alt={activeItem.alt} />
+          <figcaption>{activeItem.label}</figcaption>
+        </figure>
+      </div>
+    </section>
+  );
+}
+
+function WhyNexumSection() {
+  const carouselItems = [
+    "Prompt & Model Management",
+    "Performance Monitoring Dashboard",
+    "Secure Data Layer",
+    "Continuous System Optimization",
+    "Centralized AI Workflow Control",
+  ];
+  const loopItems = [...carouselItems, ...carouselItems];
+
+  return (
+    <section id="why-nexum" className="ai-systems-section">
+      <div className="ai-systems-copy">
+        <span className="outline-pill">AI SYSTEMS</span>
+        <h2>
+          Your AI
+          <br />
+          Infrastructure.
+          <br />
+          Managed.
+          <br />
+          Scalable. Intelligent.
+        </h2>
+      </div>
+      <p className="ai-systems-vertical">Ionyx CMS Gives You</p>
+      <div className="ai-systems-carousel" aria-label="AI infrastructure features">
+        <div className="ai-systems-track">
+          {loopItems.map((item, index) => (
+            <article className="ai-system-pill" key={`${item}-${index}`}>
+              <span className="ai-system-check"><Check size={19} /></span>
+              <strong>{item}</strong>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LegacyAiSystemsSection() {
+  return <WhyNexumSection />;
+}
+
+function TestimonialsSection() {
+  const reviewItems = testimonials.map((quote, index) => ({
+    ...quote,
+    avatar: reviewAvatars[index] || reviewAvatars[0],
+    text:
+      index === 0
+        ? "NEXUM Intelligence completely restructured how we operate internally. What started as a simple automation project evolved into a fully integrated AI system that improved reporting, lead qualification, and support workflows. The clarity in strategy and execution made the impact measurable within weeks."
+        : quote.text,
+  }));
+  const [activeReview, setActiveReview] = useState(0);
+  const selectedReview = reviewItems[activeReview];
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (reducedMotion.matches) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveReview((current) => (current + 1) % reviewItems.length);
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeReview, reviewItems.length]);
+
+  return (
+    <section id="testimonials" className="reviews-section">
+      <div className="reviews-hero-row">
+        <h2>
+          NEXUM Intelligence
+          <br />
+          Doesn&apos;t Plug AI
+          <br />
+          into Your Business.
+        </h2>
+        <img className="reviews-emblem" src={badgeSpark} alt="" />
+        <p>
+          We rebuild
+          <br />
+          your business
+          <br />
+          with AI Agents.
+        </p>
+      </div>
+
+      <div className="reviews-panel">
+        <div className="reviews-layout">
+          <div className="reviews-copy">
+            <span className="outline-pill">TESTIMONIALS</span>
+            <h3>
+              Proof We
+              <br />
+              Know What
+              <br />
+              We&apos;re Doing
+            </h3>
+          </div>
+
+          <article
+            className="review-card"
+            id="review-panel"
+            role="tabpanel"
+            aria-labelledby={`review-tab-${activeReview}`}
+          >
+            <span className="review-quote-mark" aria-hidden="true">&rdquo;</span>
+            <div className="review-card-head">
+              <img src={selectedReview.avatar} alt={`${selectedReview.name} avatar`} />
+              <div>
+                <strong>{selectedReview.name}</strong>
+                <span>{selectedReview.role}</span>
+              </div>
+            </div>
+            <p>{selectedReview.text}</p>
+          </article>
+        </div>
+
+        <div className="review-selector" role="tablist" aria-label="Testimonials">
+          {reviewItems.map((quote, index) => (
+            <button
+              className={`review-person ${activeReview === index ? "active" : ""}`}
+              type="button"
+              role="tab"
+              id={`review-tab-${index}`}
+              aria-controls="review-panel"
+              aria-selected={activeReview === index}
+              key={quote.name}
+              onClick={() => setActiveReview(index)}
+              onFocus={() => setActiveReview(index)}
+              onMouseEnter={() => setActiveReview(index)}
+            >
+              <img src={quote.avatar} alt="" />
+              <span>
+                <strong>{quote.name}</strong>
+                <em>{quote.role}</em>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FAQSection() {
+  return (
+    <section className="section faq-section">
+      <SectionIntro title="Frequently Asked Questions" />
+      <div className="faq-list">
+        {faqs.map((faq) => (
+          <details key={faq.q}>
+            <summary>{faq.q}</summary>
+            <p>{faq.a}</p>
+          </details>
+        ))}
+      </div>
+      <p className="muted center">Not found the answer you&apos;re looking for? <Link to="/contact">Contact us</Link></p>
+    </section>
+  );
+}
+
+function AboutIntroSection() {
+  return (
+    <section className="about-intro-section">
+      <span className="outline-pill">ABOUT NEXUM</span>
+      <h1>
+        Building intelligent systems
+        <br />
+        for modern businesses
+      </h1>
+      <p>
+        NEXUM Intelligence helps startups, agencies, and growing teams transform
+        complex processes into scalable AI systems. We combine strategy, automation,
+        and thoughtful design to create solutions that improve efficiency and drive
+        measurable impact.
+      </p>
+      <img src={whatWeBuildDashboard} alt="AI systems interface operated by a business strategist" />
+    </section>
+  );
+}
+
+function FoundersSection() {
+  return (
+    <section className="founders-section">
+      <div className="founders-heading">
+        <span className="outline-pill">FOUNDERS</span>
+        <h2>The people building NEXUM Intelligence</h2>
+      </div>
+      <div className="founder-grid">
+        {founders.map((founder) => (
+          <article className="founder-card" key={founder.name}>
+            <img
+              src={founder.image}
+              alt={`${founder.name} portrait`}
+              style={{ objectPosition: founder.imagePosition }}
+            />
+            <div>
+              <h3>{founder.name}</h3>
+              <span>{founder.role}</span>
+              <p>{founder.description}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HomePage() {
+  return (
+    <Shell>
+      <main>
+        <HeroSection />
+
+        <section id="impact" className="band">
+          <SectionIntro
+            label="About"
+            title="Real Systems. Real Impact."
+            text="We don’t experiment with AI. We engineer production-ready intelligence."
+          />
+          <div className="stats-grid">
+            {["40% Average Workflow Automation", "3x Faster Operational Output", "24/7 AI Execution & Overhead", "Enterprise-Level Security & Scalability"].map((stat) => (
+              <div className="stat-card" key={stat}>{stat}</div>
+            ))}
+          </div>
+        </section>
+
+        <section id="build" className="section">
+          <SectionIntro
+            label="Why NEXUM Intelligence"
+            title="What We Build"
+            text="NEXUM Intelligence builds AI systems that don’t just assist - they operate."
+          />
+          <div className="service-grid">
+            {services.map((service, index) => (
+              <article className="feature-card" key={service.title}>
+                <span className="card-index">0{index + 1}</span>
+                <h3>{service.title}</h3>
+                <p>{service.text}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="works" className="section split">
+          <div>
+            <p className="section-label">Work</p>
+            <h2>How NEXUM Intelligence Works</h2>
+          </div>
+          <div className="process-list">
+            {processSteps.map(([num, title, text]) => (
+              <article className="process-row" key={title}>
+                <span>{num}</span>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <LegacyAiSystemsSection />
+
+        <section id="testimonials" className="band">
+          <SectionIntro label="Testimonials" title="Proof We Know What We’re Doing" />
+          <div className="testimonial-grid">
+            {testimonials.map((quote) => (
+              <article className="testimonial" key={quote.name}>
+                <p>“{quote.text}”</p>
+                <strong>{quote.name}</strong>
+                <span>{quote.role}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="section faq-section">
+          <SectionIntro title="Frequently Asked Questions" />
+          <div className="faq-list">
+            {faqs.map((faq) => (
+              <details key={faq.q}>
+                <summary>{faq.q}</summary>
+                <p>{faq.a}</p>
+              </details>
+            ))}
+          </div>
+          <p className="muted center">Not found the answer you’re looking for? <Link to="/contact">Contact us</Link></p>
+        </section>
+
+        <CTA />
+      </main>
+    </Shell>
+  );
+}
+
+function AboutPage() {
+  return (
+    <Shell>
+      <main>
+        <HeroSection />
+        <section className="band">
+          <SectionIntro title="Trust & Impact" text="We combine strategy, automation, and thoughtful design to create solutions that improve efficiency and drive measurable impact." />
+          <div className="stats-grid">
+            <div className="stat-card">40% Average Workflow Automation</div>
+            <div className="stat-card">3x Faster Operational Output</div>
+            <div className="stat-card">24/7 AI Execution & Overhead</div>
+            <div className="stat-card">Enterprise-Level Security & Scalability</div>
+          </div>
+        </section>
+        <LegacyAiSystemsSection />
+        <CTA />
+      </main>
+    </Shell>
+  );
+}
+
+function HomePageV2() {
+  return (
+    <Shell>
+      <main>
+        <HeroSection />
+        <TrustImpactSection />
+        <WhatWeBuildSection />
+        <SystemsToolsSection />
+        <HowItWorksSection />
+        <WhyNexumSection />
+        <TestimonialsSection />
+        <FAQSection />
+        <CTA />
+      </main>
+    </Shell>
+  );
+}
+
+function AboutPageV2() {
+  return (
+    <Shell>
+      <main>
+        <AboutIntroSection />
+        <FoundersSection />
+        <TrustImpactSection />
+        <WhyNexumSection />
+        <TestimonialsSection />
+        <CTA />
+      </main>
+    </Shell>
+  );
+}
+
+function WhatWeBuildPage() {
+  return (
+    <Shell>
+      <main>
+        <WhatWeBuildSection standalone />
+        <WhyNexumSection />
+        <CTA />
+      </main>
+    </Shell>
+  );
+}
+
+function HowItWorksPage() {
+  return (
+    <Shell>
+      <main>
+        <HowItWorksSection standalone />
+        <FAQSection />
+        <CTA />
+      </main>
+    </Shell>
+  );
+}
+
+function AgentPlatformPage() {
+  return (
+    <Shell>
+      <main>
+        <SubHero
+          label="Agent Platform"
+          title="Explore the Autonomous Agent Platform"
+          text="A modular agent platform for analysis, creation, operation, optimization and execution."
+        />
+        <section className="section agent-platform-section">
+          <div className="agent-phase-grid">
+            {agentPhases.map((phase) => (
+              <article className="agent-phase-card" key={phase.title}>
+                <span>{phase.num}</span>
+                <h2>{phase.title}</h2>
+                <p>{phase.text}</p>
+                <div className="agent-list">
+                  {phase.agents.map(([name, output, status]) => (
+                    <div className="agent-row" key={name}>
+                      <div>
+                        <strong>{name}</strong>
+                        <p>{output}</p>
+                      </div>
+                      <em>{status}</em>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+        <CTA />
+      </main>
+    </Shell>
+  );
+}
+
+const scoreFields = [
+  ["Business Stage", ["Idea / Concept", "MVP", "Growing Company", "Established Business"]],
+  ["Main Objective", ["Validate Market Potential", "Automate Operations", "Increase Revenue", "Scale Delivery"]],
+  ["Industry Focus", ["B2B Services", "SaaS / Software", "E-Commerce", "Consulting", "Other"]],
+  ["Automation Maturity", ["Manual Processes", "Basic Tools", "Partly Automated", "AI-Ready Stack"]],
+];
+
+function SignInModal({ onClose, onSignIn }) {
+  return (
+    <div className="login-modal-backdrop" onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
+      <div className="login-modal" role="dialog" aria-modal="true" aria-labelledby="signin-title">
+        <button className="login-modal-close" type="button" onClick={onClose} aria-label="Close sign in">
+          <X size={22} />
+        </button>
+        <span className="outline-pill">SIGN IN REQUIRED</span>
+        <h2 id="signin-title">Sign in to unlock your Potential Score</h2>
+        <p>
+          Create your NEXUM account to save the analysis, compare scenarios and receive
+          agent recommendations for your business idea.
+        </p>
+        <div className="provider-grid">
+          <button type="button" onClick={onSignIn}><img src={googleLogo} alt="" /> Continue with Google</button>
+          <button type="button" onClick={onSignIn}><img src={microsoftLogo} alt="" /> Continue with Microsoft</button>
+        </div>
+        <form className="modal-signin-form" onSubmit={(event) => { event.preventDefault(); onSignIn(); }}>
+          <label>
+            Email
+            <input type="email" placeholder="you@company.com" />
+          </label>
+          <label>
+            Password
+            <input type="password" placeholder="Password" />
+          </label>
+          <button className="primary-button glow-button" type="submit">Sign in and continue</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PotentialAnalysisPage() {
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  const [score, setScore] = useState(76);
+  const [resultText, setResultText] = useState("Complete the fields and sign in to unlock your autonomous growth potential.");
+
+  const signIn = () => {
+    setSignedIn(true);
+    setLoginOpen(false);
+    setScore(88);
+    setResultText("Your idea shows strong automation potential. NEXUM can turn it into a scalable agent-powered system.");
+  };
+
+  const runAnalysis = (event) => {
+    event.preventDefault();
+    if (!signedIn) {
+      setLoginOpen(true);
+      return;
+    }
+    setScore(91);
+    setResultText("High potential detected: your model is ready for structured validation, automation and scalable execution.");
+  };
+
+  return (
+    <Shell>
+      <main>
+        <section className="potential-login-page">
+          <div className="potential-shell">
+            <article className="signin-side">
+              <span className="outline-pill"><Zap size={14} /> Agent Platform</span>
+              <h1>Access Your Autonomous Agent Platform</h1>
+              <p>
+                Sign in to save your potential analysis, compare business ideas and unlock
+                NEXUM Intelligence recommendations for your next growth move.
+              </p>
+              <div className="signin-provider-list">
+                <button type="button" onClick={() => setLoginOpen(true)}><img src={googleLogo} alt="" /> Sign in with Google</button>
+                <button type="button" onClick={() => setLoginOpen(true)}><img src={microsoftLogo} alt="" /> Sign in with Microsoft</button>
+              </div>
+              <form className="signin-inline-form" onSubmit={(event) => { event.preventDefault(); setLoginOpen(true); }}>
+                <label>
+                  Email
+                  <input type="email" placeholder="you@company.com" />
+                </label>
+                <label>
+                  Password
+                  <input type="password" placeholder="Password" />
+                </label>
+                <button className="primary-button glow-button" type="submit">Sign in</button>
+              </form>
+            </article>
+
+            <article className="score-side">
+              <div className="score-header">
+                <span className="outline-pill">POTENTIAL ANALYSIS</span>
+                <strong>{score}%</strong>
+              </div>
+              <div className="score-bar" aria-label={`Potential score ${score} percent`}>
+                <span style={{ width: `${score}%` }} />
+              </div>
+              <h2>Increase and scale your success with NEXUM Intelligence.</h2>
+              <p>
+                Describe your business idea and let the platform score how strongly it can
+                benefit from autonomous agents, automation and AI-native operations.
+              </p>
+              <form className="score-form" onSubmit={runAnalysis}>
+                {scoreFields.map(([label, options]) => (
+                  <label key={label}>
+                    {label}
+                    <select defaultValue="">
+                      <option value="" disabled>Select {label.toLowerCase()}</option>
+                      {options.map((option) => <option key={option}>{option}</option>)}
+                    </select>
+                  </label>
+                ))}
+                <label className="full">
+                  Business Idea
+                  <textarea rows="4" placeholder="Describe the idea, target audience, current process and expected outcome." />
+                </label>
+                <button className="primary-button glow-button full" type="submit">
+                  Run Potential Score <ArrowRight size={18} />
+                </button>
+                <p className="score-result full">{resultText}</p>
+              </form>
+            </article>
+          </div>
+        </section>
+      </main>
+      {loginOpen && <SignInModal onClose={() => setLoginOpen(false)} onSignIn={signIn} />}
+    </Shell>
+  );
+}
+
+function UseCaseDemoPage() {
+  return (
+    <Shell>
+      <main>
+        <SubHero
+          label="Use Case Demonstration"
+          title="Discover a Live Example of Autonomous AI Agents in Action"
+          text="A focused demonstration area for showing how NEXUM agents can create a USP, evaluate positioning and turn strategy into execution-ready assets."
+        />
+        <section className="section use-case-section">
+          <article className="use-case-card">
+            <span className="outline-pill">COMING SOON</span>
+            <h2>Autonomous USP Builder</h2>
+            <p>
+              This page is prepared for a live example where analysis, creation and execution
+              agents work together to generate a business USP, supporting positioning,
+              campaign direction and implementation tasks.
+            </p>
+            <Link className="primary-button" to="/agent-platform">
+              View the Agent Platform <ArrowRight size={18} />
+            </Link>
+          </article>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function BlogPage() {
+  return (
+    <Shell>
+      <main>
+        <SubHero label="Blog Posts" title="Latest News & Insights" text="Research, resources, and strategy notes for AI-powered operations." />
+        <section className="section">
+          <div className="blog-grid">
+            {blogPosts.map((post) => (
+              <Link className="blog-card" to={`/blog/${post.slug}`} key={post.slug}>
+                <span>{post.category} · {post.date}</span>
+                <h3>{post.title}</h3>
+                <p>{post.excerpt}</p>
+                <ul>
+                  {post.bullets.slice(0, 3).map((bullet) => <li key={bullet}>{bullet}</li>)}
+                </ul>
+                <strong>Read more <ArrowRight size={16} /></strong>
+              </Link>
+            ))}
+          </div>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function BlogPostPage() {
+  const slug = useLocationPath().split("#")[0].replace(/^\/blog\//, "");
+  const post = useMemo(() => blogPosts.find((item) => item.slug === slug), [slug]);
+
+  if (!post) return <NotFoundPage />;
+
+  return (
+    <Shell>
+      <main>
+        <article className="article-page">
+          <Link className="back-link" to="/blog"><ChevronLeft size={16} /> Back To All Posts</Link>
+          <div className="article-meta">{post.date} · {post.category}</div>
+          <h1>{post.title}</h1>
+          <p className="article-lede">{post.excerpt}</p>
+          <ul className="article-bullets">
+            {post.bullets.map((bullet) => <li key={bullet}><Check size={17} /> {bullet}</li>)}
+          </ul>
+          {post.sections.map(([title, text]) => (
+            <section key={title}>
+              <h2>{title}</h2>
+              <p>{text}</p>
+            </section>
+          ))}
+        </article>
+      </main>
+    </Shell>
+  );
+}
+
+function ContactPage() {
+  const [sent, setSent] = useState(false);
+
+  function submit(event) {
+    event.preventDefault();
+    setSent(true);
+  }
+
+  return (
+    <Shell>
+      <main>
+        <SubHero label="Let’s Talk" title="We're Here To Help" text="Our team is ready to support you with expert advice & solutions." />
+        <section className="contact-section">
+          <form className="contact-form" onSubmit={submit}>
+            <label>Name *<input required name="Name" placeholder="David Johnson" autoComplete="name" /></label>
+            <label>Email *<input required type="email" name="Email" placeholder="example@mail.com" autoComplete="email" /></label>
+            <label>Company Name *<input required name="Company" placeholder="Ex. StaticMania" autoComplete="organization" /></label>
+            <label>Select Service *
+              <select required name="Service" defaultValue="">
+                <option value="" disabled>Select Your Service</option>
+                <option>Analytics & Reporting</option>
+                <option>Brand Strategy</option>
+                <option>Event Planning</option>
+                <option>Advertising Campaigns</option>
+                <option>Consulting Services</option>
+              </select>
+            </label>
+            <label>Project Budget *
+              <select required name="Budget" defaultValue="">
+                <option value="" disabled>Select Your Range</option>
+                <option>Under $10.000</option>
+                <option>$10.000 - $25.000</option>
+                <option>$25.000 - $50.000</option>
+                <option>Above $50.000</option>
+                <option>Custom Budget</option>
+              </select>
+            </label>
+            <label className="full">Project Details<textarea name="Name" rows="6" placeholder="Tell us more about your project" /></label>
+            {["website", "company", "message", "subject", "title", "description", "feedback", "notes", "details", "remarks", "comments"].map((field) => (
+              <input key={field} className="hp-field" name={field} tabIndex="-1" autoComplete="off" />
+            ))}
+            <button className="primary-button" type="submit">Submit <ArrowRight size={18} /></button>
+            <p className="muted">We will contact you within 24 business hours.</p>
+            {sent && <div className="success">Thanks. Your request was captured locally in this clone.</div>}
+          </form>
+          <aside className="contact-card">
+            <h2>Ready to Build Your AI Advantage?</h2>
+            <p>Stop managing tasks. Start managing systems.</p>
+            <div><MapPin size={20} />58499 Alexys Highway Suite 678, NR, Nevada, UK</div>
+            <a href="tel:+1234567890"><Phone size={20} />+1 234 567 890</a>
+            <a href="mailto:customer@agencyjoy.com"><Mail size={20} />info@nexum-intelligence.com</a>
+            <a href="mailto:client@agencyjoy.com"><Mail size={20} />client@nexum-intelligence.com</a>
+          </aside>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function LegalPage({ type }) {
+  const isPrivacy = type === "privacy";
+  const title = isPrivacy ? "Privacy policy" : "Cookie policy";
+  const sections = isPrivacy
+    ? [
+        ["1. Information we collect", "When you visit this website, certain information may be collected automatically. If you choose to contact us, we may collect personal details such as your name, email address, or project information."],
+        ["2. How we use your information", "Information is used to respond to inquiries, provide services, and improve the content and functionality of this website."],
+        ["3. Cookies & analytics", "This website may use cookies or analytics tools to understand general usage and improve performance."],
+        ["4. Sharing of information", "Your information is not sold, rented, or traded with third parties."],
+        ["5. Data retention", "Personal information is stored only as long as necessary or as required by law."],
+        ["6. Security", "Reasonable technical and organizational measures are in place to protect your information."],
+        ["7. Your rights", "You may request a copy of your data, ask for corrections or deletion, and withdraw consent."],
+        ["8. Contact", "If you have questions, contact info@nexum-intelligence.com."],
+      ]
+    : [
+        ["1. What are cookies?", "Cookies are small text files stored on your device when you visit a website."],
+        ["2. How we use cookies", "This website may use cookies for essential functionality, analytics, and preferences."],
+        ["3. Third-party cookies", "Some cookies may come from trusted third-party services such as analytics or embedded content."],
+        ["4. Managing cookies", "You can control or disable cookies through your browser settings."],
+        ["5. Consent", "By continuing to use this website, you consent to the use of cookies as outlined in this policy."],
+        ["6. Updates", "This Cookie Policy may be updated occasionally."],
+        ["7. Contact", "If you have questions, contact info@nexum-intelligence.com."],
+      ];
+
+  return (
+    <Shell>
+      <main>
+        <article className="article-page legal">
+          <div className="article-meta">Dec 2025</div>
+          <h1>{title}</h1>
+          <p className="article-lede">
+            {isPrivacy
+              ? "Your privacy matters. This policy explains how we collect, use, and protect your information when you interact with this website."
+              : "This website uses cookies to improve your browsing experience. This policy explains what cookies are, how they are used here, and how you can manage them."}
+          </p>
+          {sections.map(([heading, text]) => (
+            <section key={heading}>
+              <h2>{heading}</h2>
+              <p>{text}</p>
+            </section>
+          ))}
+          <Link className="secondary-button" to={isPrivacy ? "/legal/cookie-policy" : "/legal/privacy-policy"}>
+            {isPrivacy ? "Cookie policy ›" : "‹ Privacy policy"}
+          </Link>
+        </article>
+      </main>
+    </Shell>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <Shell>
+      <main>
+        <section className="not-found">
+          <h1>404</h1>
+          <h2>Page Not Found</h2>
+          <p>The page you are looking for doesn't exist or has been moved.</p>
+          <Link className="primary-button" to="/">Back Home</Link>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function SubHero({ label, title, text }) {
+  return (
+    <section className="subhero">
+      <span className="pill"><Zap size={15} /> {label}</span>
+      <h1>{title}</h1>
+      <p>{text}</p>
+    </section>
+  );
+}
+
+function CTA() {
+  return (
+    <section className="cta">
+      <h2>Ready to Build Your AI Advantage?</h2>
+      <p>Stop managing tasks. Start managing systems.</p>
+      <a className="primary-button" href="https://cal.com/" target="_blank" rel="noreferrer">Start My AI Transformation <ArrowRight size={18} /></a>
+    </section>
+  );
+}
+
+export default function App() {
+  const path = useLocationPath().split("#")[0] || "/";
+
+  if (path === "/") return <HomePageV2 />;
+  if (path === "/about") return <AboutPageV2 />;
+  if (path === "/what-we-build") return <WhatWeBuildPage />;
+  if (path === "/how-it-works") return <HowItWorksPage />;
+  if (path === "/agent-platform") return <AgentPlatformPage />;
+  if (path === "/potential-analysis") return <PotentialAnalysisPage />;
+  if (path === "/use-case-demo") return <UseCaseDemoPage />;
+  if (path === "/blog") return <BlogPage />;
+  if (path.startsWith("/blog/")) return <BlogPostPage />;
+  if (path === "/contact") return <ContactPage />;
+  if (path === "/legal/privacy-policy") return <LegalPage type="privacy" />;
+  if (path === "/legal/cookie-policy") return <LegalPage type="cookie" />;
+  return <NotFoundPage />;
+}

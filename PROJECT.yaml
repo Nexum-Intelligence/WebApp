@@ -1,0 +1,40 @@
+schema_version: 1
+id: ionyx-framer-clone
+name: IONYX Framer Clone
+status: incubating
+priority: high
+owner: workspace
+created: 2026-07-09
+updated: 2026-07-10
+
+summary: >
+  Exportierbarer React/Vite-Nachbau der oeffentlichen Framer-App
+  logical-share-233457.framer.app mit Seiten, Sektionen und Formularen.
+
+objectives:
+  - Einen lokal lauffaehigen Clone mit allen im Framer-Suchindex erkannten Seiten bereitstellen.
+
+non_goals:
+  - Kein Framer-Projektformat oder proprietaerer Editor-Export.
+  - Kein produktiver Formularversand ohne gesonderte Backend-Integration.
+
+deliverables:
+  - name: React/Vite-Website
+    acceptance:
+      - Home, About, Blog, Blogposts, Contact, Legal und 404 sind routbar.
+      - Kontaktformular besitzt alle erkannten Felder und Submit-Zustand.
+      - Produktionsbuild laeuft erfolgreich.
+
+technology:
+  stack:
+    - React
+    - Vite
+    - CSS
+  runtime: Node.js
+  deployment: Static hosting
+
+links:
+  source_site: https://logical-share-233457.framer.app/
+  documentation: docs/
+
+next_action: Live im Browser gegen Referenzscreenshots pruefen und verbleibende Pixel-/Motion-Abweichungen feinjustieren.
