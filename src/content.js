@@ -17,20 +17,20 @@ export const footerLinks = [
 
 export const services = [
   {
-    title: "AI Automation Systems",
-    text: "Replace repetitive manual tasks with intelligent Workflows that run 24/7.",
+    title: "Autonomous AI Agent Systems",
+    text: "Autonomous agents that diagnose, orchestrate, and execute your business operations end-to-end, and not just automate tasks.",
   },
   {
-    title: "Custom GPT & AI Agents",
-    text: "Smart assistants trained on your business data to handle sales, support, and operations.",
+    title: "Intelligent Business Intelligence",
+    text: "Deep diagnostic models and strategic AI frameworks that understands your business architecture, identifies bottlenecks, and drives strategic decisions automatically.",
   },
   {
-    title: "AI Sales & Lead Systems",
-    text: "Automated funnels that qualify, nurture, and convert leads on autopilot.",
+    title: "Autonomous Sales & Growth Engines",
+    text: "Self-optimizing AI systems that find opportunities, qualify leads, and convert revenue – continuously, predictably, and without human intervention.",
   },
   {
-    title: "Internal AI Dashboards",
-    text: "Real-time data intelligence that helps you make smarter decisions faster.",
+    title: "Unified AI Operating Dashboards",
+    text: "A real-time intelligence layer that connects all agents, aligns workflows, and keeps your entire business running as one coordinated system.",
   },
 ];
 

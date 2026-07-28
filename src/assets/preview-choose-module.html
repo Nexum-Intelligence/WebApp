@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Choose your Module</title>
+<style>
+  :root{--bg:#0b1220;--panel:#0d1526;--border:#1e293b;--text:#e2e8f0;--muted:#64748b;--accent:#818cf8;--green:#22c55e}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;align-items:flex-start;justify-content:center;padding:26px}
+  .card{width:100%;max-width:600px;background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .hd{display:flex;align-items:center;gap:9px;padding:13px 18px;border-bottom:1px solid var(--border);font-size:13px;font-weight:650}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(34,197,94,.18)}
+  .hd .sub{margin-left:auto;color:var(--muted);font-size:11px;font-weight:500}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:20px}
+  .mod{position:relative;padding:16px 14px;border:1px solid var(--border);border-radius:12px;background:#0a1120;transition:border-color .3s,background .3s,transform .3s}
+  .mod .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-family:ui-monospace,monospace;font-weight:700;font-size:15px;margin-bottom:10px}
+  .mod h4{margin:0 0 3px;font-size:14px}
+  .mod p{margin:0;font-size:11px;color:var(--muted);line-height:1.35}
+  .mod .chk{position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;background:var(--green);color:#04120a;display:grid;place-items:center;font-size:12px;font-weight:800;opacity:0;transform:scale(.5);transition:opacity .3s,transform .3s}
+  .mod.sel{border-color:rgba(129,140,248,.6);background:linear-gradient(180deg,rgba(129,140,248,.12),rgba(10,17,32,.6));transform:translateY(-3px)}
+  .mod.sel .chk{opacity:1;transform:none}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="hd"><span class="dot"></span> Choose your Module <span class="sub">Select what your agents run</span></div>
+    <div class="grid" id="grid"></div>
+  </div>
+<script>
+  var mods=[
+    {t:"Analysis",d:"Market, trends & risks",c:"#3b82f6"},
+    {t:"Creation",d:"Models & brand",c:"#22d3ee"},
+    {t:"Operation",d:"Run & monitor",c:"#a855f7"},
+    {t:"Optimization",d:"Forecast & ROI",c:"#f59e0b"},
+    {t:"Execution",d:"Automate & launch",c:"#ec4899"},
+    {t:"Funding",d:"Finance & pitch",c:"#22c55e"}
+  ];
+  var grid=document.getElementById("grid");
+  mods.forEach(function(m,i){
+    var el=document.createElement("div");el.className="mod";el.id="m"+i;
+    el.innerHTML='<div class="ic" style="background:'+m.c+'22;color:'+m.c+'">&gt;_</div><h4>'+m.t+'</h4><p>'+m.d+'</p><div class="chk">✓</div>';
+    grid.appendChild(el);
+  });
+  var order=[0,2,4,1];
+  function run(){
+    order.forEach(function(idx,k){setTimeout(function(){document.getElementById("m"+idx).classList.add("sel")},500+k*520)});
+    setTimeout(function(){mods.forEach(function(_,i){document.getElementById("m"+i).classList.remove("sel")});setTimeout(run,700)},500+order.length*520+2200);
+  }
+  run();
+</script>
+    <script>
+      (function(){
+        function fit(){
+          try{
+            var fe=window.frameElement; if(!fe) return;
+            var h=Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+            if(h && Math.abs(parseInt(fe.style.height||0,10)-h)>2) fe.style.height=h+"px";
+          }catch(e){}
+        }
+        window.addEventListener("load",fit);
+        window.addEventListener("resize",fit);
+        setTimeout(fit,120); setTimeout(fit,600); setTimeout(fit,1600);
+      })();
+    </script>
+</body>
+</html>

@@ -14,6 +14,9 @@
 - Current chat target: The footer should show `Agent Platform` as a separate right-aligned glow button like `Contact Us`, not as a normal text link.
 - Current chat target: The Potential Analysis layout should feel wider and more rectangular, with smaller titles and Google/Microsoft sign-in buttons in one row using logo icons.
 - Current chat target: The About Reviews hero headline and star emblem should be slightly smaller.
+- Current chat target: The Contact hero should show an `AGENT PLATFORM` button below the intro text.
+- Current chat target: Melina's founder card should use the newly supplied founder portrait.
+- Current chat target: Vercel deployment should keep the Hero 3D logo, pointer-reactive particle motion, and route clicks stable in production.
 - State: dark NEXUM site with animated hero sphere, moving purple curtain, multi-page navigation, About/Impact section, What We Build section, and How It Works step layouts.
 
 **Implementation Evidence**
@@ -57,6 +60,9 @@
 - Moved `Agent Platform` out of the plain footer link list and added it as a right-aligned pill button with the same glow treatment as the header CTA.
 - Tuned the Potential Analysis page by widening and flattening the main shell, reducing title sizes, and replacing text-letter provider badges with local Google and Microsoft logo SVGs in a two-column provider button row.
 - Reduced the About Reviews hero headline scale and the star emblem size/transform across desktop, tablet and mobile breakpoints.
+- Added a centered Contact hero action button below the intro text using the existing glow CTA styling and routing to `/agent-platform`.
+- Replaced Melina's founder portrait asset with the newly supplied local JPEG while keeping Luise Rimola's founder image unchanged.
+- Hardened the Vercel production path by importing the Hero mesh JSON directly into the JavaScript bundle, adding SPA rewrites/build settings in `vercel.json`, and wrapping internal navigation in a fallback-safe route handler.
 
 **Required Fidelity Surfaces**
 
@@ -132,5 +138,14 @@
 - Iteration 18: User asked for the star and title in the About Reviews hero to be a little smaller.
 - Fixes made: Lowered `.reviews-hero-row h2` from `clamp(42px, 4.6vw, 62px)` to `clamp(36px, 3.9vw, 52px)`, reduced the star asset width and scale, and adjusted tablet/mobile overrides accordingly.
 - Post-fix evidence: Production build passed; local HTTP check returned `200` for `/about`. Browser screenshot capture remains blocked in this environment.
+- Iteration 19: User asked to add the `Agent Platform` button below the Contact hero intro text.
+- Fixes made: Inserted a centered `AGENT PLATFORM` glow CTA between the Contact hero and form section, linked it to `/agent-platform`, and added desktop/mobile spacing rules.
+- Post-fix evidence: Production build passed; local HTTP checks returned `200` for `/contact` and `/agent-platform`. Browser screenshot capture remains blocked in this environment.
+- Iteration 20: User asked to replace Melina's founder image with the newly supplied portrait.
+- Fixes made: Replaced `src/assets/founders/melina-kuehn.jpeg` with the supplied `D3191D1E-52DB-4AC9-B885-2D6CFAE57860.jpeg` image, leaving the existing founder layout and Luise asset untouched.
+- Post-fix evidence: Production build passed; local HTTP check returned `200` for `/about`. Browser screenshot capture remains blocked in this environment.
+- Iteration 21: User reported Vercel deployment missing the 3D logo, not reacting to hover, and crashing after clicks.
+- Fixes made: Removed the separate runtime fetch for `nexum-model-mesh.json` by importing the mesh into the bundle, added `vercel.json` with `npm run build`, `dist` output and catch-all SPA rewrite, and made `navigateTo` fallback to normal browser navigation if URL handling fails.
+- Post-fix evidence: Production build passed; local dev HTTP checks returned `200` for `/`, `/about`, `/how-it-works`, and `/agent-platform`. Vite preview starts interactively but could not be kept alive by this shell runner for repeated HTTP checks.
 
 final result: blocked

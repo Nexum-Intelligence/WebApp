@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Studio · Spielwiese</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #0d1526;
+        --border: #1e293b;
+        --text: #e2e8f0;
+        --muted: #64748b;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: #0b1220;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        padding: 0;
+      }
+      /* ---- Embed just this .agent-playground block on your site ---- */
+      .agent-playground {
+        width: 100%;
+        max-width: none;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+        border: 0;
+        border-radius: 0;
+        background: var(--bg);
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(2, 6, 23, 0.4);
+      }
+      .ap-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 13px 18px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+      }
+      .ap-title { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 14px; }
+      .ap-live-dot {
+        width: 9px; height: 9px; border-radius: 50%;
+        background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+      }
+      .ap-sub { font-size: 12px; color: var(--muted); }
+      .ap-body { display: flex; flex-wrap: wrap; flex: 1 1 auto; }
+      .ap-stage {
+        flex: 1 1 420px; min-width: 320px; display: block;
+        background: radial-gradient(120% 90% at 50% 44%, #16264a 0%, #0b1220 74%);
+      }
+      .ap-team {
+        flex: 1 1 200px; min-width: 190px;
+        border-left: 1px solid var(--border);
+        padding: 12px 14px; background: var(--panel);
+      }
+      .ap-team-title {
+        font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+        text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+      }
+      .ap-team-list { display: flex; flex-direction: column; gap: 8px; }
+      .ap-team-row { display: flex; align-items: center; gap: 9px; }
+      .ap-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+      .ap-team-name { font-size: 12.5px; color: #cbd5e1; flex: 1; }
+      .ap-team-hub { color: var(--muted); font-size: 10px; }
+      .ap-status { font-size: 10.5px; font-weight: 600; color: #475569; }
+      .ap-caption-bar {
+        display: flex; align-items: center; gap: 12px;
+        padding: 12px 18px; border-top: 1px solid var(--border);
+        background: var(--panel); flex-wrap: wrap;
+      }
+      .ap-caption { font-size: 13px; font-weight: 650; color: var(--text); }
+      .ap-kind {
+        font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px;
+        text-transform: uppercase; border-radius: 999px; padding: 3px 9px;
+      }
+      .ap-msg { font-size: 12.5px; color: #94a3b8; flex: 1; min-width: 170px; }
+      .sr-only {
+        position: absolute; width: 1px; height: 1px;
+        overflow: hidden; clip: rect(0 0 0 0);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="agent-playground" id="agent-playground">
+      <h2 class="sr-only">
+        Isometrische Ansicht von KI-Agenten in Raeumen mit Sprechblasen; der Orchestrator koordiniert
+        live, wer mit wem spricht.
+      </h2>
+      <div class="ap-header">
+        <div class="ap-title">
+          <span class="ap-live-dot"></span>
+          <span>Agent Studio &middot; Spielwiese</span>
+        </div>
+        <span class="ap-sub">Self-managed &middot; Orchestrator-driven</span>
+      </div>
+      <div class="ap-body">
+        <svg class="ap-stage" id="ap-svg" viewBox="0 0 660 410"></svg>
+        <div class="ap-team">
+          <div class="ap-team-title">Agent Team</div>
+          <div class="ap-team-list" id="ap-team"></div>
+        </div>
+      </div>
+      <div class="ap-caption-bar">
+        <div class="ap-caption" id="ap-caption">&mdash;</div>
+        <span class="ap-kind" id="ap-kind">&mdash;</span>
+        <div class="ap-msg" id="ap-msg">&mdash;</div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var NS = "http://www.w3.org/2000/svg";
+        var svg = document.getElementById("ap-svg");
+        function mk(t) { return document.createElementNS(NS, t); }
+
+        var agents = {
+          orch: { name: "Orchestrator", cx: 330, cy: 225, color: "#f59e0b", hub: true },
+          req:  { name: "Requirements", cx: 160, cy: 135, color: "#3b82f6" },
+          quiz: { name: "Questionnaire", cx: 500, cy: 135, color: "#06b6d4" },
+          sol:  { name: "Architect", cx: 100, cy: 245, color: "#a855f7" },
+          qa:   { name: "QA Manager", cx: 560, cy: 245, color: "#22c55e" },
+          dep:  { name: "Deployment", cx: 205, cy: 335, color: "#ec4899" },
+          tmpl: { name: "Template", cx: 455, cy: 335, color: "#14b8a6" }
+        };
+        var order = ["orch", "req", "quiz", "sol", "qa", "tmpl", "dep"];
+        var K = {
+          delegate: { t: "delegiert an", c: "#f59e0b" },
+          report:   { t: "meldet an", c: "#22c55e" },
+          handoff:  { t: "uebergibt an", c: "#38bdf8" },
+          escalate: { t: "eskaliert an", c: "#f43f5e" }
+        };
+        var script = [
+          { from: "orch", to: "req",  k: "delegate", msg: "Analysiere die Anforderungen." },
+          { from: "req",  to: "orch", k: "report",   msg: "Ich habe Luecken gefunden." },
+          { from: "orch", to: "quiz", k: "delegate", msg: "Stell die offenen Rueckfragen." },
+          { from: "quiz", to: "orch", k: "escalate", msg: "Blocker - das braucht einen Menschen." },
+          { from: "orch", to: "tmpl", k: "delegate", msg: "Such passende Vorlagen." },
+          { from: "tmpl", to: "sol",  k: "handoff",  msg: "Hier die Patterns fuer dich." },
+          { from: "sol",  to: "orch", k: "report",   msg: "Architektur steht." },
+          { from: "orch", to: "qa",   k: "delegate", msg: "Bitte alles validieren." },
+          { from: "qa",   to: "orch", k: "report",   msg: "Ein Blocker - nochmal Runde." },
+          { from: "orch", to: "dep",  k: "delegate", msg: "Deploy nach Freigabe." },
+          { from: "dep",  to: "orch", k: "report",   msg: "Fertig deployt!" }
+        ];
+
+        // faint hub spokes
+        order.forEach(function (k) {
+          if (k === "orch") return;
+          var a = agents[k], o = agents.orch;
+          var l = mk("line");
+          l.setAttribute("x1", o.cx); l.setAttribute("y1", o.cy);
+          l.setAttribute("x2", a.cx); l.setAttribute("y2", a.cy);
+          l.setAttribute("stroke", "#1c2c4a"); l.setAttribute("stroke-width", "1.5");
+          svg.appendChild(l);
+        });
+
+        function room(a) {
+          var HW = a.hub ? 60 : 52, HH = a.hub ? 32 : 27, WALL = a.hub ? 34 : 26;
+          var cx = a.cx, cy = a.cy, g = mk("g");
+          var floor = mk("polygon");
+          floor.setAttribute("points", cx + "," + (cy - HH) + " " + (cx + HW) + "," + cy + " " + cx + "," + (cy + HH) + " " + (cx - HW) + "," + cy);
+          floor.setAttribute("fill", "#16233f"); floor.setAttribute("stroke", "#263a61"); floor.setAttribute("stroke-width", "1.5");
+          g.appendChild(floor); a._f = floor;
+          var lw = mk("polygon");
+          lw.setAttribute("points", (cx - HW) + "," + cy + " " + cx + "," + (cy - HH) + " " + cx + "," + (cy - HH - WALL) + " " + (cx - HW) + "," + (cy - WALL));
+          lw.setAttribute("fill", "#111c33"); lw.setAttribute("stroke", "#22345a"); g.appendChild(lw);
+          var rw = mk("polygon");
+          rw.setAttribute("points", cx + "," + (cy - HH) + " " + (cx + HW) + "," + cy + " " + (cx + HW) + "," + (cy - WALL) + " " + cx + "," + (cy - HH - WALL));
+          rw.setAttribute("fill", "#0d1730"); rw.setAttribute("stroke", "#22345a"); g.appendChild(rw);
+          var ring = mk("ellipse");
+          ring.setAttribute("cx", cx); ring.setAttribute("cy", cy + 3);
+          ring.setAttribute("rx", a.hub ? 30 : 24); ring.setAttribute("ry", a.hub ? 15 : 12);
+          ring.setAttribute("fill", "none"); ring.setAttribute("stroke-width", "3"); ring.setAttribute("opacity", "0");
+          g.appendChild(ring); a._ring = ring;
+          // robot
+          var by = cy - 4, s = a.hub ? 1.15 : 1;
+          function rect(x, y, w, h, rx, fill, st) {
+            var e = mk("rect");
+            e.setAttribute("x", x); e.setAttribute("y", y); e.setAttribute("width", w); e.setAttribute("height", h); e.setAttribute("rx", rx); e.setAttribute("fill", fill);
+            if (st) { e.setAttribute("stroke", st); e.setAttribute("stroke-width", "2"); }
+            g.appendChild(e); return e;
+          }
+          rect(cx - 8, by, 6, 9, 3, "#26426e"); rect(cx + 2, by, 6, 9, 3, "#26426e"); // legs
+          rect(cx - 19 * s, by - 30, 6, 15, 3, a.color); rect(cx + 13 * s, by - 30, 6, 15, 3, a.color); // arms
+          rect(cx - 14 * s, by - 34, 28 * s, 30, 10, a.color); // body
+          var belly = mk("text");
+          belly.setAttribute("x", cx); belly.setAttribute("y", by - 14); belly.setAttribute("text-anchor", "middle");
+          belly.setAttribute("font-family", "ui-monospace, monospace"); belly.setAttribute("font-size", "9"); belly.setAttribute("font-weight", "700"); belly.setAttribute("fill", "rgba(255,255,255,.55)");
+          belly.textContent = ">-"; g.appendChild(belly);
+          rect(cx - 17 * s, by - 64, 34 * s, 30, 9, "#12203c", "#3f6aa8"); // head screen
+          var face = mk("text");
+          face.setAttribute("x", cx); face.setAttribute("y", by - 45); face.setAttribute("text-anchor", "middle");
+          face.setAttribute("font-family", "ui-monospace, monospace"); face.setAttribute("font-size", "15"); face.setAttribute("font-weight", "700"); face.setAttribute("fill", "#7de3ff");
+          face.textContent = ">_"; g.appendChild(face); a._face = face; a._robot = g;
+          // nameplate
+          var t = mk("text");
+          t.setAttribute("x", cx); t.setAttribute("y", cy + HH + 15); t.setAttribute("text-anchor", "middle");
+          t.setAttribute("font-size", a.hub ? "12" : "11"); t.setAttribute("font-weight", a.hub ? "700" : "600"); t.setAttribute("fill", a.hub ? "#fcd34d" : "#94a3b8");
+          t.textContent = a.name; g.appendChild(t); a._name = t;
+          svg.appendChild(g);
+        }
+        order.slice().sort(function (x, y) { return agents[x].cy - agents[y].cy; }).forEach(function (k) { room(agents[k]); });
+
+        var pulse = mk("circle"); pulse.setAttribute("r", "5"); pulse.setAttribute("opacity", "0"); svg.appendChild(pulse);
+        // speech bubble
+        var bubble = mk("g"); bubble.setAttribute("opacity", "0");
+        var brect = mk("rect"); brect.setAttribute("rx", "9"); brect.setAttribute("fill", "#ffffff"); brect.setAttribute("stroke-width", "2"); bubble.appendChild(brect);
+        var btail = mk("path"); btail.setAttribute("fill", "#ffffff"); bubble.appendChild(btail);
+        var btext = mk("text"); btext.setAttribute("text-anchor", "middle"); btext.setAttribute("font-size", "12.5"); btext.setAttribute("font-weight", "600"); btext.setAttribute("fill", "#0f172a"); bubble.appendChild(btext);
+        svg.appendChild(bubble);
+        // listener dots
+        var dots = mk("g"); dots.setAttribute("opacity", "0");
+        var drect = mk("rect"); drect.setAttribute("rx", "8"); drect.setAttribute("width", "34"); drect.setAttribute("height", "20"); drect.setAttribute("fill", "#1e293b"); drect.setAttribute("stroke", "#334155"); drect.setAttribute("stroke-width", "1"); dots.appendChild(drect);
+        var dtext = mk("text"); dtext.setAttribute("text-anchor", "middle"); dtext.setAttribute("font-size", "14"); dtext.setAttribute("font-weight", "700"); dtext.setAttribute("fill", "#94a3b8"); dtext.textContent = "..."; dots.appendChild(dtext);
+        svg.appendChild(dots);
+
+        var list = document.getElementById("ap-team"), rows = {};
+        order.forEach(function (k) {
+          var a = agents[k], row = document.createElement("div");
+          row.className = "ap-team-row";
+          row.innerHTML =
+            '<span class="ap-dot" style="background:' + a.color + '"></span>' +
+            '<span class="ap-team-name">' + a.name + (a.hub ? ' <span class="ap-team-hub">&middot; hub</span>' : "") + "</span>" +
+            '<span class="ap-status">idle</span>';
+          list.appendChild(row); rows[k] = row.querySelector(".ap-status");
+        });
+
+        var cap = document.getElementById("ap-caption"), kindEl = document.getElementById("ap-kind"), msg = document.getElementById("ap-msg");
+
+        function showBubble(a, text, color) {
+          btext.textContent = text;
+          var len = btext.getComputedTextLength();
+          var w = Math.max(70, len + 26), h = 30;
+          var bx = Math.min(Math.max(a.cx, w / 2 + 6), 654 - w / 2);
+          var by = a.cy - 92;
+          brect.setAttribute("x", bx - w / 2); brect.setAttribute("y", by); brect.setAttribute("width", w); brect.setAttribute("height", h); brect.setAttribute("stroke", color);
+          btext.setAttribute("x", bx); btext.setAttribute("y", by + 20);
+          var tx = Math.min(Math.max(a.cx, bx - w / 2 + 14), bx + w / 2 - 14);
+          btail.setAttribute("d", "M " + (tx - 7) + " " + (by + h) + " L " + (tx + 7) + " " + (by + h) + " L " + tx + " " + (by + h + 11) + " Z");
+          bubble.setAttribute("opacity", "1");
+        }
+
+        function setActive(s) {
+          order.forEach(function (k) {
+            agents[k]._f.setAttribute("fill", "#16233f");
+            agents[k]._ring.setAttribute("opacity", "0");
+            agents[k]._name.setAttribute("fill", agents[k].hub ? "#fcd34d" : "#94a3b8");
+            rows[k].textContent = "idle"; rows[k].style.color = "#475569";
+          });
+          var f = agents[s.from], t = agents[s.to], kd = K[s.k];
+          f._f.setAttribute("fill", "#1b3050"); f._ring.setAttribute("stroke", kd.c); f._ring.setAttribute("opacity", "0.95");
+          f._name.setAttribute("fill", "#e2e8f0"); rows[s.from].textContent = "speaking"; rows[s.from].style.color = kd.c;
+          t._ring.setAttribute("stroke", "#64748b"); t._ring.setAttribute("opacity", "0.55");
+          rows[s.to].textContent = "listening"; rows[s.to].style.color = "#94a3b8";
+          showBubble(f, s.msg, kd.c);
+          dots.setAttribute("opacity", "1"); dtext.setAttribute("x", t.cx); dtext.setAttribute("y", t.cy - 70);
+          drect.setAttribute("x", t.cx - 17); drect.setAttribute("y", t.cy - 86);
+          pulse.setAttribute("fill", kd.c);
+          cap.textContent = "▸ " + f.name + "  " + kd.t + "  " + t.name;
+          kindEl.textContent = s.k; kindEl.style.color = kd.c; kindEl.style.background = "rgba(255,255,255,.06)"; kindEl.style.border = "1px solid " + kd.c;
+          msg.textContent = s.msg;
+        }
+
+        var step = 0, start = null, dur = 1250, holding = false, hold = 0;
+        function frame(ts) {
+          if (start === null) start = ts;
+          var s = script[step], f = agents[s.from], t = agents[s.to];
+          if (holding) {
+            pulse.setAttribute("opacity", "0");
+            if (ts >= hold) { holding = false; start = ts; step = (step + 1) % script.length; setActive(script[step]); }
+          } else {
+            var p = Math.min(1, (ts - start) / dur);
+            var e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+            pulse.setAttribute("cx", f.cx + (t.cx - f.cx) * e);
+            pulse.setAttribute("cy", f.cy + (t.cy - f.cy) * e);
+            pulse.setAttribute("opacity", "1");
+            var wob = 1 + Math.sin(ts / 120) * 0.02;
+            f._robot.setAttribute("transform", "translate(" + (f.cx * (1 - wob)) + "," + (f.cy * (1 - wob)) + ") scale(" + wob + ")");
+            if (p >= 1) { holding = true; hold = ts + 900; }
+          }
+          requestAnimationFrame(frame);
+        }
+        setActive(script[0]);
+        requestAnimationFrame(frame);
+      })();
+    </script>
+  </body>
+</html>

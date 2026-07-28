@@ -26,7 +26,74 @@ import melinaKuehnPortrait from "./assets/founders/melina-kuehn.jpeg";
 import luiseRimolaPortrait from "./assets/founders/luise-rimola.jpeg";
 import googleLogo from "./assets/brand/google-g.svg";
 import microsoftLogo from "./assets/brand/microsoft.svg";
-import nexumModelMeshUrl from "./assets/nexum-model-mesh.json?url";
+import nexumModelMesh from "./assets/nexum-model-mesh.json";
+import agentsDemoUrl from "./assets/spielwieseagentsdemo.html?url";
+import previewInfoUrl from "./assets/preview-info-input.html?url";
+import previewModuleUrl from "./assets/preview-choose-module.html?url";
+import previewValidateUrl from "./assets/preview-validate.html?url";
+import previewContactUrl from "./assets/preview-contact.html?url";
+import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
+
+const PerfContext = React.createContext({ lite: false, setLite: () => {} });
+
+function usePerf() {
+  return React.useContext(PerfContext);
+}
+
+function PerfProvider({ children }) {
+  const [lite, setLiteState] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const saved = window.localStorage.getItem("nexum_perf");
+      if (saved === "lite") return true;
+      if (saved === "full") return false;
+    } catch (e) {}
+    // No explicit choice yet -> quick auto-detection from device signals.
+    try {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return true;
+    } catch (e) {}
+    const mem = navigator.deviceMemory;         // approx RAM in GB (Chrome)
+    const cores = navigator.hardwareConcurrency; // logical CPU cores
+    if ((mem && mem <= 2) || (cores && cores <= 2)) return true;
+    return false;
+  });
+
+  const setLite = (value) => {
+    setLiteState(value);
+    try { window.localStorage.setItem("nexum_perf", value ? "lite" : "full"); } catch (e) {}
+  };
+
+  useEffect(() => {
+    try { document.documentElement.setAttribute("data-lite", lite ? "1" : "0"); } catch (e) {}
+  }, [lite]);
+
+  // Measure the real frame rate for ~1.2s. If the device can't keep a smooth
+  // frame rate, switch to lite mode automatically. Skipped once the visitor
+  // has made an explicit choice via the footer toggle.
+  useEffect(() => {
+    let explicit = false;
+    try { explicit = !!window.localStorage.getItem("nexum_perf"); } catch (e) {}
+    if (explicit) return undefined;
+
+    let raf = 0;
+    let frames = 0;
+    let start = 0;
+    const step = (now) => {
+      if (!start) start = now;
+      frames += 1;
+      const elapsed = now - start;
+      if (elapsed < 1200) {
+        raf = window.requestAnimationFrame(step);
+      } else if ((frames * 1000) / elapsed < 50) {
+        setLiteState(true);
+      }
+    };
+    raf = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(raf);
+  }, []);
+
+  return <PerfContext.Provider value={{ lite, setLite }}>{children}</PerfContext.Provider>;
+}
 
 function subscribeToLocation(callback) {
   window.addEventListener("popstate", callback);
@@ -49,13 +116,21 @@ function useLocationPath() {
 }
 
 function navigateTo(to) {
-  const next = new URL(to, window.location.origin);
-  window.history.pushState({}, "", `${next.pathname}${next.search}${next.hash}`);
-  window.dispatchEvent(new Event("locationchange"));
-  if (next.hash) {
-    window.setTimeout(() => document.getElementById(next.hash.slice(1))?.scrollIntoView(), 0);
-  } else {
-    window.scrollTo({ top: 0 });
+  try {
+    const next = new URL(to, window.location.origin);
+    if (next.origin !== window.location.origin) {
+      window.location.assign(next.href);
+      return;
+    }
+    window.history.pushState({}, "", `${next.pathname}${next.search}${next.hash}`);
+    window.dispatchEvent(new Event("locationchange"));
+    if (next.hash) {
+      window.setTimeout(() => document.getElementById(next.hash.slice(1))?.scrollIntoView(), 0);
+    } else {
+      window.scrollTo({ top: 0 });
+    }
+  } catch {
+    window.location.assign(to);
   }
 }
 
@@ -129,6 +204,7 @@ const Sparkles = (props) => <Icon {...props}><path d="m12 3 1.6 4.4L18 9l-4.4 1.
 const Workflow = (props) => <Icon {...props}><rect x="3" y="4" width="6" height="6" rx="1" /><rect x="15" y="14" width="6" height="6" rx="1" /><path d="M9 7h3a4 4 0 0 1 4 4v3" /><path d="M12 11h4" /></Icon>;
 const X = (props) => <Icon {...props}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></Icon>;
 const Zap = (props) => <Icon {...props}><path d="M13 2 3 14h8l-1 8 11-13h-8z" /></Icon>;
+const Globe = (props) => <Icon {...props}><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></Icon>;
 
 const systemsToolsItems = [
   {
@@ -170,9 +246,9 @@ const founders = [
     name: "Melina Kühn",
     role: "CEO & CMO",
     description:
-      "Melina leads NEXUM Intelligence's corporate strategy, product vision, brand development, go-to-market direction and growth strategy. She brings experience in AI transformation, business development, change management and marketing. She is also pursuing a doctorate in Human-AI Interactions with a focus on the acceptance of AI agents in companies, connecting scientific expertise with entrepreneurial practice.",
+      "Melina leads NEXUM Intelligence's corporate strategy, product vision, brand development, go-to-market direction and growth strategy. She brings experience in AI transformation, business development, leadership, change management and marketing. She is also pursuing a doctorate in Human-AI Interactions with a focus on the acceptance of AI agents in companies, connecting scientific expertise with entrepreneurial practice.",
     image: melinaKuehnPortrait,
-    imagePosition: "50% 38%",
+    imagePosition: "50% 12%",
   },
   {
     name: "Luise Rimola",
@@ -186,6 +262,7 @@ const founders = [
 
 function ParticleSphere() {
   const canvasRef = useRef(null);
+  const { lite } = usePerf();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -206,18 +283,7 @@ function ParticleSphere() {
       targetY: 0,
       strength: 0,
     };
-    let modelTriangles = [];
-
-    fetch(nexumModelMeshUrl)
-      .then((response) => response.json())
-      .then((mesh) => {
-        if (disposed) return;
-        modelTriangles = mesh.triangles || [];
-        draw(window.performance?.now?.() ?? 0);
-      })
-      .catch(() => {
-        modelTriangles = [];
-      });
+    const modelTriangles = Array.isArray(nexumModelMesh?.triangles) ? nexumModelMesh.triangles : [];
 
     const pointCount = 7000;
     const points = Array.from({ length: pointCount }, (_, index) => {
@@ -293,18 +359,18 @@ function ParticleSphere() {
     function drawModelMesh(time, centerX, centerY, sphereRadius, sinY, cosY, sinX, cosX) {
       if (!modelTriangles.length) return;
 
-      const modelScale = sphereRadius * 1.42;
+      const modelScale = sphereRadius * 1.68;
       const floatY = reducedMotion.matches ? 0 : Math.sin(time * 0.0012) * sphereRadius * 0.012;
       context.save();
       context.globalCompositeOperation = "lighter";
 
       const halo = context.createRadialGradient(centerX, centerY + floatY, sphereRadius * 0.08, centerX, centerY + floatY, sphereRadius * 0.68);
-      halo.addColorStop(0, "rgba(42, 84, 255, 0.16)");
-      halo.addColorStop(0.52, "rgba(76, 77, 255, 0.07)");
+      halo.addColorStop(0, "rgba(42, 104, 255, 0.3)");
+      halo.addColorStop(0.46, "rgba(95, 86, 255, 0.16)");
       halo.addColorStop(1, "rgba(5, 6, 11, 0)");
       context.fillStyle = halo;
       context.beginPath();
-      context.ellipse(centerX, centerY + floatY, sphereRadius * 0.72, sphereRadius * 0.48, -0.08, 0, Math.PI * 2);
+      context.ellipse(centerX, centerY + floatY, sphereRadius * 0.78, sphereRadius * 0.54, -0.08, 0, Math.PI * 2);
       context.fill();
 
       const projectedTriangles = modelTriangles.map((triangle) => {
@@ -317,9 +383,9 @@ function ParticleSphere() {
         };
       }).sort((a, b) => a.depth - b.depth);
 
-      context.lineWidth = Math.max(0.35, sphereRadius * 0.0017);
-      context.shadowBlur = sphereRadius * 0.04;
-      context.shadowColor = "rgba(80, 104, 255, 0.45)";
+      context.lineWidth = Math.max(0.55, sphereRadius * 0.0024);
+      context.shadowBlur = sphereRadius * 0.075;
+      context.shadowColor = "rgba(86, 116, 255, 0.82)";
 
       for (const triangle of projectedTriangles) {
         const [a, b, c] = triangle.points;
@@ -328,9 +394,9 @@ function ParticleSphere() {
         const depth = Math.max(0, Math.min(1, (triangle.depth + 0.48) / 0.96));
         const blue = Math.round(180 + depth * 48);
         const violet = Math.round(120 + depth * 86);
-        const alpha = front ? 0.18 + depth * 0.24 : 0.045 + depth * 0.07;
-        context.fillStyle = `rgba(${Math.round(38 + depth * 28)}, ${blue}, ${violet}, ${alpha})`;
-        context.strokeStyle = `rgba(194, 212, 255, ${front ? 0.12 + depth * 0.16 : 0.035})`;
+        const alpha = front ? 0.34 + depth * 0.36 : 0.08 + depth * 0.12;
+        context.fillStyle = `rgba(${Math.round(44 + depth * 34)}, ${blue}, ${violet}, ${alpha})`;
+        context.strokeStyle = `rgba(216, 228, 255, ${front ? 0.26 + depth * 0.3 : 0.08})`;
         context.beginPath();
         context.moveTo(a.x, a.y);
         context.lineTo(b.x, b.y);
@@ -406,7 +472,7 @@ function ParticleSphere() {
 
       context.restore();
 
-      if (!reducedMotion.matches) {
+      if (!reducedMotion.matches && !lite) {
         animationFrame = window.requestAnimationFrame(draw);
       }
     }
@@ -422,7 +488,7 @@ function ParticleSphere() {
     canvas.addEventListener("pointerenter", updatePointer);
     canvas.addEventListener("pointerdown", updatePointer);
     canvas.addEventListener("pointerleave", releasePointer);
-    if (!reducedMotion.matches) {
+    if (!reducedMotion.matches && !lite) {
       animationFrame = window.requestAnimationFrame(draw);
     }
 
@@ -439,7 +505,7 @@ function ParticleSphere() {
       canvas.removeEventListener("pointerdown", updatePointer);
       canvas.removeEventListener("pointerleave", releasePointer);
     };
-  }, []);
+  }, [lite]);
 
   return (
     <div className="particle-sphere" aria-hidden="true">
@@ -449,27 +515,25 @@ function ParticleSphere() {
 }
 
 function HeroSection() {
+  const { t } = useI18n();
   return (
     <section className="hero reference-hero">
       <div className="hero-copy">
         <Link className="hero-badge hero-platform-chip" to="/potential-analysis">
           <span className="hero-badge-icon"><img src={badgeSpark} alt="" /></span>
-          Explore the Autonomous Agent Platform
+          {t.btn.explorePlatform}
         </Link>
         <h1>
-          Build AI-Native<br />
-          Business Systems. Not<br />
-          Just Software.
+          {t.hero.l1}<br />
+          {t.hero.l2}<br />
+          {t.hero.l3}
         </h1>
         <p className="hero-statement">
-          NEXUM Intelligence brings a new era of AI into your business: autonomous agent
-          systems that diagnose challenges, design strategic solutions, and execute them
-          end-to-end. Our agents do not stop at insights - they build models, create assets,
-          run workflows, and continuously optimize your operations for measurable growth.
+          {t.hero.statement}
         </p>
         <div className="hero-actions">
           <a className="primary-button glow-button" href="https://cal.com/" target="_blank" rel="noreferrer">
-            BOOK A STRATEGY CALL
+            {t.btn.bookCall}
           </a>
         </div>
       </div>
@@ -478,8 +542,65 @@ function HeroSection() {
   );
 }
 
+function LanguageSelector({ variant = "desktop" }) {
+  const { lang, setLang } = useI18n();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onDocClick = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const current = LANGS.find((item) => item.code === lang) || LANGS[0];
+
+  return (
+    <div className={`lang-select lang-${variant}`} ref={ref}>
+      <button
+        type="button"
+        className="lang-button"
+        aria-label="Select language"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Globe size={18} />
+        <span className="lang-code">{current.code.toUpperCase()}</span>
+      </button>
+      {open && (
+        <ul className="lang-menu" role="listbox">
+          {LANGS.map((item) => (
+            <li key={item.code}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={item.code === lang}
+                className={item.code === lang ? "active" : ""}
+                onClick={() => { setLang(item.code); setOpen(false); }}
+              >
+                {item.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Header() {
   const [open, setOpen] = useState(false);
+  const { t } = useI18n();
+  const navLabels = [
+    { label: t.nav.whatWeBuild, href: "/agent-platform" },
+    { label: t.nav.howItWorks, href: "/how-it-works" },
+    { label: t.nav.blog, href: "/blog" },
+    { label: t.nav.about, href: "/about" },
+    { label: t.nav.contact, href: "/contact" },
+  ];
 
   return (
     <header className="site-header">
@@ -487,13 +608,19 @@ function Header() {
         <img src={nexumLogo} alt="NEXUM Intelligence" />
       </Link>
       <nav className="desktop-nav" aria-label="Primary navigation">
-        {navItems.filter((item) => item.label !== "Contact Us").map((item) => (
-          <NavLink key={item.label} to={item.href}>
+        {navLabels.filter((item) => item.href !== "/contact").map((item) => (
+          <NavLink key={item.href} to={item.href}>
             {item.label.toUpperCase()}
           </NavLink>
         ))}
       </nav>
-      <Link className="header-cta glow-button" to="/contact">CONTACT US</Link>
+      <div className="header-right">
+        <Link className="header-mail" to="/contact" aria-label="Contact form">
+          <Mail size={18} />
+        </Link>
+        <LanguageSelector />
+        <Link className="header-cta glow-button" to="/potential-analysis">{t.btn.platform}</Link>
+      </div>
       <button className="menu-button" onClick={() => setOpen(true)} aria-label="Open menu">
         <Menu size={22} />
       </button>
@@ -502,17 +629,12 @@ function Header() {
           <button className="menu-close" onClick={() => setOpen(false)} aria-label="Close menu">
             <X size={22} />
           </button>
-          {navItems.map((item) =>
-            item.href.startsWith("/#") ? (
-              <a key={item.label} href={item.href} onClick={() => setOpen(false)}>
-                {item.label}
-              </a>
-            ) : (
-              <NavLink key={item.label} to={item.href} onClick={() => setOpen(false)}>
-                {item.label}
-              </NavLink>
-            )
-          )}
+          {navLabels.map((item) => (
+            <NavLink key={item.href} to={item.href} onClick={() => setOpen(false)}>
+              {item.label}
+            </NavLink>
+          ))}
+          <LanguageSelector variant="mobile" />
         </div>
       )}
     </header>
@@ -520,6 +642,9 @@ function Header() {
 }
 
 function Footer() {
+  const { t, lang } = useI18n();
+  const { lite, setLite } = usePerf();
+  const perfLabel = { en: "Reduce animations", de: "Animationen reduzieren", es: "Reducir animaciones", fr: "Réduire les animations" }[lang] || "Reduce animations";
   return (
     <footer className="footer">
       <div className="footer-inner">
@@ -527,24 +652,35 @@ function Footer() {
           <Link className="brand nexum-brand footer-brand" to="/">
             <img src={nexumLogo} alt="NEXUM Intelligence" />
           </Link>
-          <p>Stop managing tasks. Start managing systems.</p>
+          <p>{t.footer.tagline}</p>
         </div>
         <div className="footer-nav">
           <div className="footer-links">
-            {footerLinks.map((link) => (
-              <Link key={link.label} to={link.href}>
-                {link.label}
+            {footerLinks.map((link, i) => (
+              <Link key={link.href} to={link.href}>
+                {t.footer.links[i] || link.label}
               </Link>
             ))}
             <Link to="/legal/privacy-policy">Privacy Policy</Link>
             <Link to="/legal/cookie-policy">Cookie Policy</Link>
           </div>
-          <Link className="footer-cta glow-button" to="/agent-platform">
+          <Link className="footer-cta glow-button" to="/potential-analysis">
             AGENT PLATFORM
           </Link>
         </div>
       </div>
-      <div className="copyright">© 2026 NEXUM Intelligence. All rights reserved.</div>
+      <div className="footer-bottom">
+        <div className="copyright">© 2026 NEXUM Intelligence. All rights reserved.</div>
+        <button
+          type="button"
+          className={`perf-toggle ${lite ? "active" : ""}`}
+          onClick={() => setLite(!lite)}
+          aria-pressed={lite}
+        >
+          <span className="perf-dot" aria-hidden="true" />
+          {perfLabel}
+        </button>
+      </div>
     </footer>
   );
 }
@@ -570,15 +706,16 @@ function SectionIntro({ label, title, text, align = "center" }) {
 }
 
 function TrustImpactSection() {
+  const { t } = useI18n();
   return (
     <section id="impact" className="impact-section">
       <div className="impact-inner">
-        <span className="outline-pill">ABOUT</span>
+        <span className="outline-pill">{t.nav.about}</span>
         <h2>Trust &amp; Impact</h2>
         <div className="impact-copy">
-          <p>Real Systems.<br />Real Impact.</p>
+          <p>{t.impact.title1}<br />{t.impact.title2}</p>
           <span className="impact-arrow" aria-hidden="true" />
-          <p>We don't experiment with AI.<br />We engineer production-ready intelligence.</p>
+          <p>{t.impact.sub1}<br />{t.impact.sub2}</p>
         </div>
         <div className="impact-stats-grid">
           {[
@@ -635,6 +772,7 @@ function RefreshIcon() {
 }
 
 function WhatWeBuildSection({ standalone = false }) {
+  const { t } = useI18n();
   return (
     <section id="build" className={`build-showcase ${standalone ? "page-section" : ""}`}>
       <div className="build-title">
@@ -647,12 +785,12 @@ function WhatWeBuildSection({ standalone = false }) {
       </div>
       <div className="build-layout">
         <article className="build-visual-card">
-          <span className="outline-pill">WHY NEXUM INTELLIGENCE</span>
-          <h3>What We Build</h3>
+          <span className="outline-pill">{t.build.label.toUpperCase()}</span>
+          <h3>{t.build.title}</h3>
           <img src={whatWeBuildDashboard} alt="AI operations dashboard visual" />
         </article>
         <div className="build-service-list">
-          {services.map((service, index) => (
+          {t.build.services.map((service, index) => (
             <article className="build-service-row" key={service.title} tabIndex={0}>
               <span className="service-line-icon">
                 {index === 0 && <Workflow size={48} />}
@@ -667,6 +805,27 @@ function WhatWeBuildSection({ standalone = false }) {
             </article>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function SecurityComplianceSection() {
+  const { t } = useI18n();
+  const s = t.security;
+  return (
+    <section id="security" className="section security-section">
+      <SectionIntro label={s.pill} title={s.title} text={s.intro} />
+      <div className="security-grid">
+        {s.items.map((item) => (
+          <article className="security-card" key={item.name}>
+            <span className="security-badge"><ShieldCheck size={20} /></span>
+            <div>
+              <h3>{item.name}</h3>
+              <p>{item.desc}</p>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   );
@@ -741,30 +900,93 @@ function FunnelIcon() {
   );
 }
 
-function HowItWorksSection({ standalone = false }) {
-  const workImages = [scenePresenter, sceneAiWindow, abstractSystem, abstractDashboard, sceneConsulting];
+const howItWorksSteps = [
+  {
+    num: "01",
+    title: "Information Input",
+    text: "Lets the Agents know all informations about your business and idea.",
+  },
+  {
+    num: "02",
+    title: "Choose your Module",
+    text: "Pick the agent modules that match your current goal.",
+  },
+  {
+    num: "03",
+    title: "Give your Agents a Task and watch them work",
+    text: "Assign a task and watch the autonomous agents execute it end-to-end.",
+    demo: true,
+  },
+  {
+    num: "04",
+    title: "Validate the Outcome",
+    text: "Give the agents feedback until you are happy with the results.",
+  },
+  {
+    num: "05",
+    title: "Contact us for your individual Setup",
+    text: "We build your tailored agent setup around your business.",
+  },
+];
 
+function WorkPhasesSection() {
+  const { t } = useI18n();
+  const workImages = [scenePresenter, sceneAiWindow, abstractSystem, abstractDashboard, sceneConsulting];
+  return (
+    <section id="works" className="work-steps-section">
+      <span className="outline-pill">{t.works.pill}</span>
+      <h2>{t.works.title}</h2>
+      <div className="work-actions">
+        <Link className="secondary-button" to="/agent-platform">{t.btn.getToKnowAgents}</Link>
+      </div>
+      <div className="work-step-panel">
+        {t.works.phases.map((phase, index) => (
+          <article className="work-step" key={phase.num} tabIndex={0}>
+            <div>
+              <span>{phase.num}</span>
+              <h3>{phase.title}</h3>
+              <p>{phase.text}</p>
+            </div>
+            <img src={workImages[index] || sceneConsulting} alt={`${phase.title} visual`} />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HowItWorksSection({ standalone = false }) {
+  const { t } = useI18n();
+  const stepPreviews = [previewInfoUrl, previewModuleUrl, agentsDemoUrl, previewValidateUrl, previewContactUrl];
   return (
     <section id="works" className={`work-steps-section ${standalone ? "page-section" : ""}`}>
-      <span className="outline-pill">WORK</span>
-      <h2>How NEXUM Intelligence Works</h2>
+      <span className="outline-pill">{t.works.pill}</span>
+      <h2>{t.works.title}</h2>
       {!standalone && (
         <div className="work-actions">
-          <Link className="secondary-button" to="/agent-platform">Get to know our AI agents</Link>
+          <Link className="secondary-button" to="/agent-platform">{t.btn.getToKnowAgents}</Link>
         </div>
       )}
-      <div className="work-step-panel">
-        {processSteps.map(([num, title, text], index) => (
-          <article className="work-step" key={title} tabIndex={0}>
-            <div>
-              <span>{num}</span>
-              <h3>{title}</h3>
-              <p>{text}</p>
+      <div className="how-steps">
+        {t.works.steps.map((step, i) => (
+          <article className="how-step" key={step.num}>
+            <div className="how-step-head">
+              <span className="how-step-num">{step.num}</span>
+              <div className="how-step-copy">
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </div>
             </div>
-            <img
-              src={workImages[index] || sceneConsulting}
-              alt={`${title} process visual`}
-            />
+            <div className="how-step-media">
+              <div className="how-step-demo-wrap">
+                <iframe
+                  className="how-step-demo"
+                  src={stepPreviews[i]}
+                  title={`${step.title} preview`}
+                  loading="lazy"
+                />
+              </div>
+            </div>
           </article>
         ))}
       </div>
@@ -978,18 +1200,19 @@ function TestimonialsSection() {
 }
 
 function FAQSection() {
+  const { t } = useI18n();
   return (
     <section className="section faq-section">
-      <SectionIntro title="Frequently Asked Questions" />
+      <SectionIntro title={t.faqTitle} />
       <div className="faq-list">
-        {faqs.map((faq) => (
+        {t.faqs.map((faq) => (
           <details key={faq.q}>
             <summary>{faq.q}</summary>
             <p>{faq.a}</p>
           </details>
         ))}
       </div>
-      <p className="muted center">Not found the answer you&apos;re looking for? <Link to="/contact">Contact us</Link></p>
+      <p className="muted center">Not found the answer you&apos;re looking for? <Link to="/contact">{t.nav.contact}</Link></p>
     </section>
   );
 }
@@ -997,17 +1220,18 @@ function FAQSection() {
 function AboutIntroSection() {
   return (
     <section className="about-intro-section">
-      <span className="outline-pill">ABOUT NEXUM</span>
+      <span className="outline-pill">About NEXUM Intelligence</span>
       <h1>
-        Building intelligent systems
+        Building Autonomous AI Systems
         <br />
-        for modern businesses
+        for the Next Generation of Business.
       </h1>
       <p>
-        NEXUM Intelligence helps startups, agencies, and growing teams transform
-        complex processes into scalable AI systems. We combine strategy, automation,
-        and thoughtful design to create solutions that improve efficiency and drive
-        measurable impact.
+        Nexum Intelligence empowers startups, agencies, and growing companies to turn
+        complex operations into fully autonomous AI systems. We combine strategic
+        intelligence, multi-agent autonomy, and high-performance system design to create
+        solutions that understand your business, run workflows end-to-end, and deliver
+        measurable impact at scale.
       </p>
       <img src={whatWeBuildDashboard} alt="AI systems interface operated by a business strategist" />
     </section>
@@ -1050,8 +1274,8 @@ function HomePage() {
         <section id="impact" className="band">
           <SectionIntro
             label="About"
-            title="Real Systems. Real Impact."
-            text="We don’t experiment with AI. We engineer production-ready intelligence."
+            title="Real Systems. Real Transformation."
+            text="We do not experiment with AI. We engineer intelligent business systems that deliver measurable impact from day one."
           />
           <div className="stats-grid">
             {["40% Average Workflow Automation", "3x Faster Operational Output", "24/7 AI Execution & Overhead", "Enterprise-Level Security & Scalability"].map((stat) => (
@@ -1064,7 +1288,7 @@ function HomePage() {
           <SectionIntro
             label="Why NEXUM Intelligence"
             title="What We Build"
-            text="NEXUM Intelligence builds AI systems that don’t just assist - they operate."
+            text="NEXUM Intelligence builds AI systems that autonomously think, orchestrate, and execute end-to-end."
           />
           <div className="service-grid">
             {services.map((service, index) => (
@@ -1155,8 +1379,9 @@ function HomePageV2() {
         <HeroSection />
         <TrustImpactSection />
         <WhatWeBuildSection />
+        <SecurityComplianceSection />
         <SystemsToolsSection />
-        <HowItWorksSection />
+        <WorkPhasesSection />
         <WhyNexumSection />
         <TestimonialsSection />
         <FAQSection />
@@ -1186,6 +1411,7 @@ function WhatWeBuildPage() {
     <Shell>
       <main>
         <WhatWeBuildSection standalone />
+        <SecurityComplianceSection />
         <WhyNexumSection />
         <CTA />
       </main>
@@ -1282,11 +1508,29 @@ function SignInModal({ onClose, onSignIn }) {
   );
 }
 
+function AgentRobot({ color = "#818cf8" }) {
+  return (
+    <svg viewBox="0 0 80 80" width="132" height="132" fill="none" aria-hidden="true">
+      <rect x="32" y="66" width="6" height="9" rx="3" fill="#26426e" />
+      <rect x="42" y="66" width="6" height="9" rx="3" fill="#26426e" />
+      <rect x="21" y="36" width="6" height="15" rx="3" fill={color} />
+      <rect x="53" y="36" width="6" height="15" rx="3" fill={color} />
+      <rect x="26" y="32" width="28" height="30" rx="10" fill={color} />
+      <text x="40" y="52" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="9" fontWeight="700" fill="rgba(255,255,255,.55)">{">-"}</text>
+      <rect x="23" y="2" width="34" height="30" rx="9" fill="#12203c" stroke="#3f6aa8" strokeWidth="2" />
+      <text x="40" y="21" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="15" fontWeight="700" fill="#7de3ff">{">_"}</text>
+    </svg>
+  );
+}
+
 function PotentialAnalysisPage() {
+  const { t } = useI18n();
   const [loginOpen, setLoginOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [score, setScore] = useState(76);
   const [resultText, setResultText] = useState("Complete the fields and sign in to unlock your autonomous growth potential.");
+  const analysisPath = useLocationPath().split("#")[0];
+  const showQuestionnaire = analysisPath === "/potential-analysis/fragebogen";
 
   const signIn = () => {
     setSignedIn(true);
@@ -1311,61 +1555,71 @@ function PotentialAnalysisPage() {
         <section className="potential-login-page">
           <div className="potential-shell">
             <article className="signin-side">
-              <span className="outline-pill"><Zap size={14} /> Agent Platform</span>
-              <h1>Access Your Autonomous Agent Platform</h1>
+              <span className="outline-pill"><Zap size={14} /> {t.platform.pill}</span>
+              <h1>{t.platform.title}</h1>
               <p>
-                Sign in to save your potential analysis, compare business ideas and unlock
-                NEXUM Intelligence recommendations for your next growth move.
+                {t.platform.signinText}
               </p>
               <div className="signin-provider-list">
-                <button type="button" onClick={() => setLoginOpen(true)}><img src={googleLogo} alt="" /> Sign in with Google</button>
-                <button type="button" onClick={() => setLoginOpen(true)}><img src={microsoftLogo} alt="" /> Sign in with Microsoft</button>
+                <button type="button" onClick={() => setLoginOpen(true)}><img src={googleLogo} alt="" /> {t.platform.google}</button>
+                <button type="button" onClick={() => setLoginOpen(true)}><img src={microsoftLogo} alt="" /> {t.platform.microsoft}</button>
               </div>
               <form className="signin-inline-form" onSubmit={(event) => { event.preventDefault(); setLoginOpen(true); }}>
                 <label>
-                  Email
+                  {t.platform.email}
                   <input type="email" placeholder="you@company.com" />
                 </label>
                 <label>
-                  Password
-                  <input type="password" placeholder="Password" />
+                  {t.platform.password}
+                  <input type="password" placeholder={t.platform.password} />
                 </label>
-                <button className="primary-button glow-button" type="submit">Sign in</button>
+                <button className="primary-button glow-button" type="submit">{t.btn.signIn}</button>
               </form>
             </article>
 
             <article className="score-side">
               <div className="score-header">
-                <span className="outline-pill">POTENTIAL ANALYSIS</span>
+                <span className="outline-pill">{t.platform.scorePill}</span>
                 <strong>{score}%</strong>
               </div>
               <div className="score-bar" aria-label={`Potential score ${score} percent`}>
                 <span style={{ width: `${score}%` }} />
               </div>
-              <h2>Increase and scale your success with NEXUM Intelligence.</h2>
+              <h2>{t.platform.scoreTitle}</h2>
               <p>
-                Describe your business idea and let the platform score how strongly it can
-                benefit from autonomous agents, automation and AI-native operations.
+                {t.platform.scoreIntro}
               </p>
+              {showQuestionnaire ? (
               <form className="score-form" onSubmit={runAnalysis}>
                 {scoreFields.map(([label, options]) => (
                   <label key={label}>
-                    {label}
+                    {t.platform.fields[label] || label}
                     <select defaultValue="">
-                      <option value="" disabled>Select {label.toLowerCase()}</option>
+                      <option value="" disabled>{t.platform.fields[label] || label}</option>
                       {options.map((option) => <option key={option}>{option}</option>)}
                     </select>
                   </label>
                 ))}
                 <label className="full">
-                  Business Idea
-                  <textarea rows="4" placeholder="Describe the idea, target audience, current process and expected outcome." />
+                  {t.platform.businessIdea}
+                  <textarea rows="4" placeholder={t.platform.businessIdeaPlaceholder} />
                 </label>
                 <button className="primary-button glow-button full" type="submit">
-                  Run Potential Score <ArrowRight size={18} />
+                  {t.btn.runScore} <ArrowRight size={18} />
                 </button>
                 <p className="score-result full">{resultText}</p>
               </form>
+              ) : (
+                <div className="agent-intro">
+                  <div className="agent-avatar"><AgentRobot /></div>
+                  <div className="agent-bubble">
+                    <p>{t.platform.agentBubble}</p>
+                    <Link className="primary-button glow-button" to="/potential-analysis/fragebogen">
+                      {t.btn.startQuestionnaire} <ArrowRight size={18} />
+                    </Link>
+                  </div>
+                </div>
+              )}
             </article>
           </div>
         </section>
@@ -1403,6 +1657,8 @@ function UseCaseDemoPage() {
   );
 }
 
+const blogImages = [scenePresenter, sceneAiWindow, abstractDashboard, abstractSystem];
+
 function BlogPage() {
   return (
     <Shell>
@@ -1410,8 +1666,9 @@ function BlogPage() {
         <SubHero label="Blog Posts" title="Latest News & Insights" text="Research, resources, and strategy notes for AI-powered operations." />
         <section className="section">
           <div className="blog-grid">
-            {blogPosts.map((post) => (
+            {blogPosts.map((post, index) => (
               <Link className="blog-card" to={`/blog/${post.slug}`} key={post.slug}>
+                <img className="blog-card-img" src={blogImages[index % blogImages.length]} alt={post.title} />
                 <span>{post.category} · {post.date}</span>
                 <h3>{post.title}</h3>
                 <p>{post.excerpt}</p>
@@ -1431,6 +1688,7 @@ function BlogPage() {
 function BlogPostPage() {
   const slug = useLocationPath().split("#")[0].replace(/^\/blog\//, "");
   const post = useMemo(() => blogPosts.find((item) => item.slug === slug), [slug]);
+  const idx = blogPosts.findIndex((item) => item.slug === slug);
 
   if (!post) return <NotFoundPage />;
 
@@ -1439,6 +1697,7 @@ function BlogPostPage() {
       <main>
         <article className="article-page">
           <Link className="back-link" to="/blog"><ChevronLeft size={16} /> Back To All Posts</Link>
+          <img className="article-banner" src={blogImages[(idx < 0 ? 0 : idx) % blogImages.length]} alt={post.title} />
           <div className="article-meta">{post.date} · {post.category}</div>
           <h1>{post.title}</h1>
           <p className="article-lede">{post.excerpt}</p>
@@ -1469,6 +1728,11 @@ function ContactPage() {
     <Shell>
       <main>
         <SubHero label="Let’s Talk" title="We're Here To Help" text="Our team is ready to support you with expert advice & solutions." />
+        <div className="contact-hero-actions">
+          <Link className="primary-button glow-button contact-platform-button" to="/potential-analysis">
+            AGENT PLATFORM <ArrowRight size={18} />
+          </Link>
+        </div>
         <section className="contact-section">
           <form className="contact-form" onSubmit={submit}>
             <label>Name *<input required name="Name" placeholder="David Johnson" autoComplete="name" /></label>
@@ -1592,16 +1856,17 @@ function SubHero({ label, title, text }) {
 }
 
 function CTA() {
+  const { t } = useI18n();
   return (
     <section className="cta">
-      <h2>Ready to Build Your AI Advantage?</h2>
-      <p>Stop managing tasks. Start managing systems.</p>
-      <a className="primary-button" href="https://cal.com/" target="_blank" rel="noreferrer">Start My AI Transformation <ArrowRight size={18} /></a>
+      <h2>{t.cta.title}</h2>
+      <p>{t.footer.tagline}</p>
+      <a className="primary-button" href="https://cal.com/" target="_blank" rel="noreferrer">{t.btn.bookCall} <ArrowRight size={18} /></a>
     </section>
   );
 }
 
-export default function App() {
+function Routes() {
   const path = useLocationPath().split("#")[0] || "/";
 
   if (path === "/") return <HomePageV2 />;
@@ -1610,6 +1875,7 @@ export default function App() {
   if (path === "/how-it-works") return <HowItWorksPage />;
   if (path === "/agent-platform") return <AgentPlatformPage />;
   if (path === "/potential-analysis") return <PotentialAnalysisPage />;
+  if (path === "/potential-analysis/fragebogen") return <PotentialAnalysisPage />;
   if (path === "/use-case-demo") return <UseCaseDemoPage />;
   if (path === "/blog") return <BlogPage />;
   if (path.startsWith("/blog/")) return <BlogPostPage />;
@@ -1617,4 +1883,14 @@ export default function App() {
   if (path === "/legal/privacy-policy") return <LegalPage type="privacy" />;
   if (path === "/legal/cookie-policy") return <LegalPage type="cookie" />;
   return <NotFoundPage />;
+}
+
+export default function App() {
+  return (
+    <PerfProvider>
+      <LanguageProvider>
+        <Routes />
+      </LanguageProvider>
+    </PerfProvider>
+  );
 }

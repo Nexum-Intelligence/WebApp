@@ -114,6 +114,22 @@
 - 2026-07-20: About-Reviews-Hero ruhiger gesetzt: grosse `Doesn't Plug AI`-
   Headline und Stern-Emblem verkleinert, inklusive Tablet-/Mobile-Werten.
   Produktionsbuild und lokale `/about`-Pruefung erfolgreich.
+- 2026-07-20: Contact-Hero um zentrierten `AGENT PLATFORM`-Glow-Button
+  direkt unter dem Introtext erweitert; Button fuehrt zu `/agent-platform`.
+  Produktionsbuild sowie lokale `/contact`- und `/agent-platform`-Pruefung
+  erfolgreich.
+- 2026-07-20: Melina-Founder-Portrait durch das neu bereitgestellte
+  Bild `D3191D1E-52DB-4AC9-B885-2D6CFAE57860.jpeg` ersetzt.
+  Produktionsbuild und lokale `/about`-Pruefung erfolgreich.
+- 2026-07-20: Luise-Founder-Portrait minimal gezoomt und den Bildfokus
+  auf den oberen Abschnitt gesetzt. Produktionsbuild und lokale
+  `/about`-Pruefung erfolgreich.
+- 2026-07-20: Vercel-Stabilisierung umgesetzt: 3D-Mesh der Hero-Kugel
+  direkt ins JS-Bundle importiert statt separat per Asset-URL zu fetchen,
+  interne Navigation fehlertoleranter gemacht und `vercel.json` mit
+  Build-Command, Output-Verzeichnis und SPA-Rewrites ergaenzt.
+  Produktionsbuild erfolgreich; lokale Haupt-Routen ueber Dev-Server mit
+  `200` geprueft.
 
 ## Blockiert
 

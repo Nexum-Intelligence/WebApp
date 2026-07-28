@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Information Input</title>
+<style>
+  :root{--bg:#0b1220;--panel:#0d1526;--border:#1e293b;--text:#e2e8f0;--muted:#64748b;--accent:#818cf8;--cyan:#67e8f9;--green:#22c55e}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;align-items:flex-start;justify-content:center;padding:26px}
+  .card{width:100%;max-width:560px;background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .hd{display:flex;align-items:center;gap:9px;padding:13px 18px;border-bottom:1px solid var(--border);font-size:13px;font-weight:650}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(34,197,94,.18)}
+  .hd .sub{margin-left:auto;color:var(--muted);font-size:11px;font-weight:500}
+  .body{padding:20px 22px}
+  .row{margin-bottom:14px}
+  .lbl{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .field{min-height:40px;display:flex;align-items:center;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#0a1120;font-size:14px;font-family:ui-monospace,monospace}
+  .field.active{border-color:rgba(129,140,248,.6);box-shadow:0 0 0 3px rgba(129,140,248,.12)}
+  .cursor{display:inline-block;width:2px;height:16px;background:var(--cyan);margin-left:2px;animation:blink 1s steps(1) infinite;vertical-align:middle}
+  @keyframes blink{50%{opacity:0}}
+  .send{display:flex;align-items:center;gap:10px;margin-top:6px;padding:11px 14px;border-radius:10px;border:1px solid rgba(129,140,248,.4);background:linear-gradient(90deg,rgba(129,140,248,.16),rgba(129,140,248,.04));font-size:13px;font-weight:600;opacity:0;transform:translateY(6px);transition:opacity .4s,transform .4s}
+  .send.show{opacity:1;transform:none}
+  .send .ico{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--green);color:#04120a;font-weight:800;font-size:14px}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="hd"><span class="dot"></span> Information Input <span class="sub">Feeding the agents</span></div>
+    <div class="body">
+      <div class="row"><div class="lbl">Business</div><div class="field" id="f0"></div></div>
+      <div class="row"><div class="lbl">Your idea</div><div class="field" id="f1"></div></div>
+      <div class="row"><div class="lbl">Industry</div><div class="field" id="f2"></div></div>
+      <div class="send" id="send"><span class="ico">✓</span> All information sent to your agents</div>
+    </div>
+  </div>
+<script>
+  var fields=[
+    {el:document.getElementById("f0"),text:"NEXUM Intelligence"},
+    {el:document.getElementById("f1"),text:"Autonomous agent systems for my business"},
+    {el:document.getElementById("f2"),text:"B2B SaaS"}
+  ];
+  var send=document.getElementById("send");
+  function reset(){fields.forEach(function(f){f.el.innerHTML="";f.el.classList.remove("active")});send.classList.remove("show")}
+  function typeField(i,done){
+    if(i>=fields.length){send.classList.add("show");setTimeout(function(){reset();setTimeout(function(){typeField(0)},600)},2600);return}
+    var f=fields[i];f.el.classList.add("active");var n=0;
+    (function tick(){
+      if(n<=f.text.length){f.el.innerHTML=f.text.slice(0,n)+'<span class="cursor"></span>';n++;setTimeout(tick,42)}
+      else{f.el.textContent=f.text;f.el.classList.remove("active");setTimeout(function(){typeField(i+1)},380)}
+    })();
+  }
+  typeField(0);
+</script>
+    <script>
+      (function(){
+        function fit(){
+          try{
+            var fe=window.frameElement; if(!fe) return;
+            var h=Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+            if(h && Math.abs(parseInt(fe.style.height||0,10)-h)>2) fe.style.height=h+"px";
+          }catch(e){}
+        }
+        window.addEventListener("load",fit);
+        window.addEventListener("resize",fit);
+        setTimeout(fit,120); setTimeout(fit,600); setTimeout(fit,1600);
+      })();
+    </script>
+</body>
+</html>
