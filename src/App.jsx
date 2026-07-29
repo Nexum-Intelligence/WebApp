@@ -955,6 +955,60 @@ function WorkPhasesSection() {
   );
 }
 
+// Auto-fits the iframe height to its content (same-origin previews).
+// Driven from React so it does not depend on a script inside each preview.
+function AutoFitFrame({ src, title }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const frame = ref.current;
+    if (!frame) return undefined;
+    let observer = null;
+    let raf = 0;
+    const timers = [];
+    const fit = () => {
+      try {
+        const doc = frame.contentDocument;
+        if (!doc || !doc.body) return;
+        const h = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
+        if (h && Math.abs(parseInt(frame.style.height || "0", 10) - h) > 2) {
+          frame.style.height = h + "px";
+        }
+      } catch (e) {
+        /* cross-origin — keep the CSS fallback height */
+      }
+    };
+    const onLoad = () => {
+      fit();
+      try {
+        const doc = frame.contentDocument;
+        if (doc && doc.body && typeof ResizeObserver !== "undefined") {
+          observer = new ResizeObserver(() => {
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(fit);
+          });
+          observer.observe(doc.body);
+        }
+      } catch (e) {
+        /* ignore */
+      }
+      [120, 500, 1200, 2500].forEach((ms) => timers.push(setTimeout(fit, ms)));
+    };
+    frame.addEventListener("load", onLoad);
+    try {
+      if (frame.contentDocument && frame.contentDocument.readyState === "complete") onLoad();
+    } catch (e) {
+      /* ignore */
+    }
+    return () => {
+      frame.removeEventListener("load", onLoad);
+      if (observer) observer.disconnect();
+      cancelAnimationFrame(raf);
+      timers.forEach(clearTimeout);
+    };
+  }, [src]);
+  return <iframe ref={ref} className="how-step-demo" src={src} title={title} loading="lazy" />;
+}
+
 function HowItWorksSection({ standalone = false }) {
   const { t } = useI18n();
   const stepPreviews = [previewInfoUrl, previewModuleUrl, agentsDemoUrl, previewValidateUrl, previewContactUrl];
@@ -979,12 +1033,7 @@ function HowItWorksSection({ standalone = false }) {
             </div>
             <div className="how-step-media">
               <div className="how-step-demo-wrap">
-                <iframe
-                  className="how-step-demo"
-                  src={stepPreviews[i]}
-                  title={`${step.title} preview`}
-                  loading="lazy"
-                />
+                <AutoFitFrame src={stepPreviews[i]} title={`${step.title} preview`} />
               </div>
             </div>
           </article>

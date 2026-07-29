@@ -28,7 +28,7 @@ const dict = {
     ], steps: [
       { num: "01", title: "Information Input", text: "Lets the Agents know all informations about your business and idea." },
       { num: "02", title: "Choose your Module", text: "Pick the agent modules that match your current goal." },
-      { num: "03", title: "Give your Agents a Task and watch them work", text: "Assign a task and watch the autonomous agents execute it end-to-end." },
+      { num: "03", title: "Give your Agents a Task", text: "Assign a task and watch the autonomous agents execute it end-to-end." },
       { num: "04", title: "Validate the Outcome", text: "Give the agents feedback until you are happy with the results." },
       { num: "05", title: "Contact us for your individual Setup", text: "We build your tailored agent setup around your business." },
     ] },
@@ -80,7 +80,7 @@ const dict = {
     ], steps: [
       { num: "01", title: "Informationseingabe", text: "Gib den Agenten alle Informationen über dein Unternehmen und deine Idee." },
       { num: "02", title: "Wähle dein Modul", text: "Wähle die Agenten-Module, die zu deinem aktuellen Ziel passen." },
-      { num: "03", title: "Gib deinen Agenten eine Aufgabe und sieh ihnen bei der Arbeit zu", text: "Vergib eine Aufgabe und beobachte, wie die autonomen Agenten sie Ende-zu-Ende ausführen." },
+      { num: "03", title: "Gib deinen Agenten eine Aufgabe", text: "Vergib eine Aufgabe und beobachte, wie die autonomen Agenten sie Ende-zu-Ende ausführen." },
       { num: "04", title: "Prüfe das Ergebnis", text: "Gib den Agenten Feedback, bis du mit dem Ergebnis zufrieden bist." },
       { num: "05", title: "Kontaktiere uns für dein individuelles Setup", text: "Wir bauen dein maßgeschneidertes Agenten-Setup rund um dein Unternehmen." },
     ] },
@@ -132,7 +132,7 @@ const dict = {
     ], steps: [
       { num: "01", title: "Entrada de información", text: "Dale a los agentes toda la información sobre tu negocio y tu idea." },
       { num: "02", title: "Elige tu módulo", text: "Elige los módulos de agentes que se ajustan a tu objetivo actual." },
-      { num: "03", title: "Dale una tarea a tus agentes y míralos trabajar", text: "Asigna una tarea y observa cómo los agentes autónomos la ejecutan de principio a fin." },
+      { num: "03", title: "Dale una tarea a tus agentes", text: "Asigna una tarea y observa cómo los agentes autónomos la ejecutan de principio a fin." },
       { num: "04", title: "Valida el resultado", text: "Da feedback a los agentes hasta que estés satisfecho con el resultado." },
       { num: "05", title: "Contáctanos para tu configuración individual", text: "Creamos tu configuración de agentes a medida en torno a tu negocio." },
     ] },
@@ -184,7 +184,7 @@ const dict = {
     ], steps: [
       { num: "01", title: "Saisie des informations", text: "Donnez aux agents toutes les informations sur votre entreprise et votre idée." },
       { num: "02", title: "Choisissez votre module", text: "Choisissez les modules d'agents adaptés à votre objectif actuel." },
-      { num: "03", title: "Confiez une tâche à vos agents et regardez-les travailler", text: "Assignez une tâche et regardez les agents autonomes l'exécuter de bout en bout." },
+      { num: "03", title: "Confiez une tâche à vos agents", text: "Assignez une tâche et regardez les agents autonomes l'exécuter de bout en bout." },
       { num: "04", title: "Validez le résultat", text: "Donnez du feedback aux agents jusqu'à ce que le résultat vous convienne." },
       { num: "05", title: "Contactez-nous pour votre configuration individuelle", text: "Nous construisons votre configuration d'agents sur mesure autour de votre entreprise." },
     ] },
