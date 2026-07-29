@@ -3695,7 +3695,7 @@ main {
 .how-step-demo {
   display: block;
   width: 100%;
-  height: 460px;
+  height: var(--demo-h, 460px);
   border: 0;
   background: #0b1220;
 }
@@ -3708,7 +3708,7 @@ main {
     gap: 14px;
   }
   .how-step-demo {
-    height: 520px;
+    height: var(--demo-h-m, 520px);
   }
 }
 

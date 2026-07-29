@@ -955,63 +955,19 @@ function WorkPhasesSection() {
   );
 }
 
-// Auto-fits the iframe height to its content (same-origin previews).
-// Driven from React so it does not depend on a script inside each preview.
-function AutoFitFrame({ src, title }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const frame = ref.current;
-    if (!frame) return undefined;
-    let observer = null;
-    let raf = 0;
-    const timers = [];
-    const fit = () => {
-      try {
-        const doc = frame.contentDocument;
-        if (!doc || !doc.body) return;
-        const h = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
-        if (h && Math.abs(parseInt(frame.style.height || "0", 10) - h) > 2) {
-          frame.style.height = h + "px";
-        }
-      } catch (e) {
-        /* cross-origin — keep the CSS fallback height */
-      }
-    };
-    const onLoad = () => {
-      fit();
-      try {
-        const doc = frame.contentDocument;
-        if (doc && doc.body && typeof ResizeObserver !== "undefined") {
-          observer = new ResizeObserver(() => {
-            cancelAnimationFrame(raf);
-            raf = requestAnimationFrame(fit);
-          });
-          observer.observe(doc.body);
-        }
-      } catch (e) {
-        /* ignore */
-      }
-      [120, 500, 1200, 2500].forEach((ms) => timers.push(setTimeout(fit, ms)));
-    };
-    frame.addEventListener("load", onLoad);
-    try {
-      if (frame.contentDocument && frame.contentDocument.readyState === "complete") onLoad();
-    } catch (e) {
-      /* ignore */
-    }
-    return () => {
-      frame.removeEventListener("load", onLoad);
-      if (observer) observer.disconnect();
-      cancelAnimationFrame(raf);
-      timers.forEach(clearTimeout);
-    };
-  }, [src]);
-  return <iframe ref={ref} className="how-step-demo" src={src} title={title} loading="lazy" />;
-}
-
 function HowItWorksSection({ standalone = false }) {
   const { t } = useI18n();
   const stepPreviews = [previewInfoUrl, previewModuleUrl, agentsDemoUrl, previewValidateUrl, previewContactUrl];
+  // Content heights measured in a real browser (Playwright), max over the animation.
+  // d = desktop (> 720px), m = mobile (<= 720px). Set from React so it never depends
+  // on a script running inside the framed document.
+  const demoHeights = [
+    { d: 412, m: 432 }, // 01 Information Input
+    { d: 382, m: 428 }, // 02 Choose your Module
+    { d: 500, m: 576 }, // 03 Agents demo (Agent Studio)
+    { d: 378, m: 420 }, // 04 Validate the Outcome
+    { d: 470, m: 546 }, // 05 Individual Setup
+  ];
   return (
     <section id="works" className={`work-steps-section ${standalone ? "page-section" : ""}`}>
       <span className="outline-pill">{t.works.pill}</span>
@@ -1033,7 +989,13 @@ function HowItWorksSection({ standalone = false }) {
             </div>
             <div className="how-step-media">
               <div className="how-step-demo-wrap">
-                <AutoFitFrame src={stepPreviews[i]} title={`${step.title} preview`} />
+                <iframe
+                  className="how-step-demo"
+                  src={stepPreviews[i]}
+                  title={`${step.title} preview`}
+                  loading="lazy"
+                  style={{ "--demo-h": `${demoHeights[i].d}px`, "--demo-h-m": `${demoHeights[i].m}px` }}
+                />
               </div>
             </div>
           </article>
