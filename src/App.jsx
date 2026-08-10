@@ -11,17 +11,17 @@ import {
 } from "./content.js";
 import nexumLogo from "./assets/source-logo-wide.png";
 import badgeSpark from "./assets/badge-chip.svg";
-import whatWeBuildDashboard from "./assets/framer-images/what-we-build-dashboard-platform.png";
+import whatWeBuildDashboard from "./assets/framer-images/what-we-build-dashboard-platform.webp";
 import reviewWomanAvatar from "./assets/framer-images/what-we-build-woman-yellow.webp";
-import systemsArchitectureVisual from "./assets/framer-images/ChatGPT Image 20. Juli 2026, 15_35_02.png";
-import systemsStrategyVisual from "./assets/framer-images/ChatGPT Image 20. Juli 2026, 15_05_23.png";
-import systemsPerformanceVisual from "./assets/framer-images/ChatGPT Image 20. Juli 2026, 16_05_11.png";
-import scenePresenter from "./assets/framer-images/Analyze.png";
-import sceneAiWindow from "./assets/framer-images/Create.png";
-import sceneConsulting from "./assets/framer-images/Operate.png";
-import abstractDashboard from "./assets/framer-images/Optimize.png";
-import abstractSystem from "./assets/framer-images/Execute.png";
-import phoneVertical from "./assets/framer-images/what-we-build-dashboard-platform.png";
+import systemsArchitectureVisual from "./assets/framer-images/systems-architecture.webp";
+import systemsStrategyVisual from "./assets/framer-images/systems-strategy.webp";
+import systemsPerformanceVisual from "./assets/framer-images/systems-performance.webp";
+import scenePresenter from "./assets/framer-images/analyze.webp";
+import sceneAiWindow from "./assets/framer-images/create.webp";
+import sceneConsulting from "./assets/framer-images/operate.webp";
+import abstractDashboard from "./assets/framer-images/optimize.webp";
+import abstractSystem from "./assets/framer-images/execute.webp";
+import phoneVertical from "./assets/framer-images/what-we-build-dashboard-platform.webp";
 import melinaKuehnPortrait from "./assets/founders/melina-kuehn.jpeg";
 import luiseRimolaPortrait from "./assets/founders/luise-rimola.jpeg";
 import googleLogo from "./assets/brand/google-g.svg";
@@ -955,6 +955,28 @@ function WorkPhasesSection() {
   );
 }
 
+// Mounts a preview iframe only while it's near the viewport, so off-screen
+// previews don't keep running their animation loops (perf win on /how-it-works).
+function LazyFrame({ src, title, style }) {
+  const holderRef = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = holderRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setVisible(true); return undefined; }
+    const io = new IntersectionObserver(
+      (entries) => setVisible(entries[0].isIntersecting),
+      { rootMargin: "300px 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div ref={holderRef} className="how-step-holder" style={style}>
+      {visible && <iframe className="how-step-demo-fill" src={src} title={title} loading="lazy" />}
+    </div>
+  );
+}
+
 function HowItWorksSection({ standalone = false }) {
   const { t } = useI18n();
   const stepPreviews = [previewInfoUrl, previewModuleUrl, agentsDemoUrl, previewValidateUrl, previewContactUrl];
@@ -989,11 +1011,9 @@ function HowItWorksSection({ standalone = false }) {
             </div>
             <div className="how-step-media">
               <div className="how-step-demo-wrap">
-                <iframe
-                  className="how-step-demo"
+                <LazyFrame
                   src={stepPreviews[i]}
                   title={`${step.title} preview`}
-                  loading="lazy"
                   style={{ "--demo-h": `${demoHeights[i].d}px`, "--demo-h-m": `${demoHeights[i].m}px` }}
                 />
               </div>
@@ -1534,6 +1554,282 @@ function AgentRobot({ color = "#818cf8" }) {
   );
 }
 
+const ArrowLeft = (props) => <Icon {...props}><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></Icon>;
+
+// ============================================================================
+// AI Readiness Test — step-by-step questionnaire, rule-based scoring,
+// lead + company capture (before the result), stored via /api/lead.
+// ============================================================================
+const READINESS = {
+  en: {
+    kicker: "AI Readiness Test",
+    title: "How ready is your business for autonomous AI?",
+    intro: "Answer 6 quick questions and unlock your personal AI-readiness score, a breakdown across 6 dimensions and concrete next steps.",
+    start: "Start the test",
+    step: "Step", of: "of", next: "Next", back: "Back", toResult: "Almost there",
+    dimensions: [
+      { key: "strategy", label: "Strategy & Goals", question: "How clear are your goals for using AI or automation?",
+        options: [ { label: "No concrete idea yet", points: 0 }, { label: "Vague interest, still exploring", points: 1 }, { label: "A few clear use cases in mind", points: 2 }, { label: "A documented strategy with priorities", points: 3 } ] },
+      { key: "data", label: "Data Readiness", question: "How is your business data organised today?",
+        options: [ { label: "Mostly on paper or in people's heads", points: 0 }, { label: "Scattered across spreadsheets & inboxes", points: 1 }, { label: "Central digital systems (CRM/ERP)", points: 2 }, { label: "Structured & accessible via APIs", points: 3 } ] },
+      { key: "technology", label: "Technology & Infrastructure", question: "What best describes your current tools?",
+        options: [ { label: "Mostly manual work", points: 0 }, { label: "Basic SaaS tools, not connected", points: 1 }, { label: "An integrated cloud stack", points: 2 }, { label: "Automated & API-connected systems", points: 3 } ] },
+      { key: "team", label: "Team & Skills", question: "Does your team have AI or automation know-how?",
+        options: [ { label: "None yet", points: 0 }, { label: "Curious, but no experience", points: 1 }, { label: "A few internal champions", points: 2 }, { label: "Dedicated roles / capability", points: 3 } ] },
+      { key: "processes", label: "Processes & Automation", question: "How automated are your repetitive processes?",
+        options: [ { label: "Everything is manual", points: 0 }, { label: "A few things are automated", points: 1 }, { label: "Many processes are automated", points: 2 }, { label: "Mostly automated end-to-end", points: 3 } ] },
+      { key: "urgency", label: "Budget & Urgency", question: "How ready are you to invest in the next 3–6 months?",
+        options: [ { label: "Just exploring, no budget", points: 0 }, { label: "A small test budget", points: 1 }, { label: "A committed budget", points: 2 }, { label: "Urgent priority with budget", points: 3 } ] },
+    ],
+    levels: [
+      { min: 0, label: "AI Explorer", blurb: "You're at the very start of your AI journey — the biggest wins come from clarifying where to begin." },
+      { min: 40, label: "AI Builder", blurb: "The foundations are forming. With a few connected workflows you can unlock real momentum." },
+      { min: 65, label: "AI Ready", blurb: "You have strong foundations. You're ready to put autonomous agents on real processes." },
+      { min: 85, label: "AI Accelerator", blurb: "You're primed to scale. Focus on rolling out agents across the business with clear ROI." },
+    ],
+    form: {
+      heading: "Where should we send your result?",
+      sub: "Enter your details to unlock your readiness score and tailored breakdown.",
+      name: "Full name", email: "Work email", company: "Company", phone: "Phone", website: "Website", industry: "Industry",
+      challenge: "Your biggest challenge or goal (optional)",
+      consent: "I agree that NEXUM Intelligence may store my details and contact me about my result.",
+      privacy: "Privacy policy",
+      submit: "Unlock my result", sending: "Analysing…",
+      required: "Please fill in name, email & company and accept the privacy note.",
+    },
+    industries: ["Software / SaaS", "E-Commerce / Retail", "Manufacturing", "Professional Services", "Finance / Insurance", "Healthcare", "Marketing / Agency", "Logistics", "Other"],
+    result: {
+      pill: "Your AI Readiness", dimensionsTitle: "Your readiness by dimension", recTitle: "Recommended next steps",
+      ctaTitle: "Want the full picture?", ctaText: "Book a free 30-minute strategy call and we'll turn this score into a concrete roadmap.",
+      cta: "Book my strategy call", restart: "Retake the test",
+      thanks: "Result sent to our team — we'll be in touch shortly.",
+    },
+    recs: {
+      "AI Explorer": ["Pick 1–2 concrete use cases where automation saves the most time.", "Start centralising your key business data.", "Book a discovery call to map quick wins."],
+      "AI Builder": ["Connect your existing tools so data flows automatically.", "Pilot one automated workflow end-to-end.", "Upskill a small internal champion team."],
+      "AI Ready": ["Deploy autonomous agents on a full process.", "Add monitoring & validation loops.", "Sequence automations by ROI."],
+      "AI Accelerator": ["Scale agents across departments.", "Set up governance, security & KPIs.", "Target measurable ROI within a quarter."],
+    },
+  },
+  de: {
+    kicker: "KI-Readiness-Test",
+    title: "Wie bereit ist dein Unternehmen für autonome KI?",
+    intro: "Beantworte 6 kurze Fragen und erhalte deinen persönlichen KI-Readiness-Score, eine Auswertung über 6 Dimensionen und konkrete nächste Schritte.",
+    start: "Test starten",
+    step: "Schritt", of: "von", next: "Weiter", back: "Zurück", toResult: "Fast geschafft",
+    dimensions: [
+      { key: "strategy", label: "Strategie & Ziele", question: "Wie klar sind deine Ziele für den Einsatz von KI oder Automatisierung?",
+        options: [ { label: "Noch keine konkrete Idee", points: 0 }, { label: "Vages Interesse, am Erkunden", points: 1 }, { label: "Ein paar klare Anwendungsfälle im Kopf", points: 2 }, { label: "Dokumentierte Strategie mit Prioritäten", points: 3 } ] },
+      { key: "data", label: "Daten-Reife", question: "Wie sind deine Unternehmensdaten heute organisiert?",
+        options: [ { label: "Meist auf Papier oder in den Köpfen", points: 0 }, { label: "Verstreut über Tabellen & Postfächer", points: 1 }, { label: "Zentrale digitale Systeme (CRM/ERP)", points: 2 }, { label: "Strukturiert & über APIs zugänglich", points: 3 } ] },
+      { key: "technology", label: "Technik & Infrastruktur", question: "Was beschreibt deine aktuellen Tools am besten?",
+        options: [ { label: "Überwiegend manuelle Arbeit", points: 0 }, { label: "Einfache SaaS-Tools, nicht verbunden", points: 1 }, { label: "Integrierter Cloud-Stack", points: 2 }, { label: "Automatisierte & API-verbundene Systeme", points: 3 } ] },
+      { key: "team", label: "Team & Kompetenzen", question: "Hat dein Team KI- oder Automatisierungs-Know-how?",
+        options: [ { label: "Bisher keins", points: 0 }, { label: "Neugierig, aber ohne Erfahrung", points: 1 }, { label: "Ein paar interne Vorreiter", points: 2 }, { label: "Eigene Rollen / Kompetenz", points: 3 } ] },
+      { key: "processes", label: "Prozesse & Automatisierung", question: "Wie automatisiert sind deine wiederkehrenden Prozesse?",
+        options: [ { label: "Alles ist manuell", points: 0 }, { label: "Ein paar Dinge sind automatisiert", points: 1 }, { label: "Viele Prozesse sind automatisiert", points: 2 }, { label: "Größtenteils Ende-zu-Ende automatisiert", points: 3 } ] },
+      { key: "urgency", label: "Budget & Dringlichkeit", question: "Wie bereit bist du, in den nächsten 3–6 Monaten zu investieren?",
+        options: [ { label: "Nur am Erkunden, kein Budget", points: 0 }, { label: "Kleines Testbudget", points: 1 }, { label: "Festes Budget", points: 2 }, { label: "Dringende Priorität mit Budget", points: 3 } ] },
+    ],
+    levels: [
+      { min: 0, label: "KI-Einsteiger", blurb: "Du stehst noch ganz am Anfang — die größten Gewinne bringt jetzt Klarheit, wo du startest." },
+      { min: 40, label: "KI-Aufbauer", blurb: "Die Grundlagen entstehen. Mit ein paar verbundenen Workflows holst du echten Schwung." },
+      { min: 65, label: "KI-Bereit", blurb: "Du hast starke Grundlagen. Du bist bereit, autonome Agenten auf echte Prozesse zu setzen." },
+      { min: 85, label: "KI-Beschleuniger", blurb: "Du bist bereit zu skalieren. Fokus: Agenten unternehmensweit ausrollen mit klarem ROI." },
+    ],
+    form: {
+      heading: "Wohin sollen wir dein Ergebnis schicken?",
+      sub: "Gib deine Daten ein, um deinen Readiness-Score und die Auswertung freizuschalten.",
+      name: "Vollständiger Name", email: "Geschäftliche E-Mail", company: "Unternehmen", phone: "Telefon", website: "Website", industry: "Branche",
+      challenge: "Deine größte Herausforderung oder dein Ziel (optional)",
+      consent: "Ich bin einverstanden, dass NEXUM Intelligence meine Daten speichert und mich zu meinem Ergebnis kontaktiert.",
+      privacy: "Datenschutz",
+      submit: "Ergebnis freischalten", sending: "Analysiere…",
+      required: "Bitte Name, E-Mail & Unternehmen ausfüllen und den Datenschutzhinweis akzeptieren.",
+    },
+    industries: ["Software / SaaS", "E-Commerce / Handel", "Produktion / Industrie", "Dienstleistung", "Finanzen / Versicherung", "Gesundheit", "Marketing / Agentur", "Logistik", "Sonstige"],
+    result: {
+      pill: "Deine KI-Readiness", dimensionsTitle: "Deine Readiness nach Dimension", recTitle: "Empfohlene nächste Schritte",
+      ctaTitle: "Willst du das volle Bild?", ctaText: "Buche ein kostenloses 30-Minuten-Strategiegespräch und wir machen aus diesem Score eine konkrete Roadmap.",
+      cta: "Strategiegespräch buchen", restart: "Test wiederholen",
+      thanks: "Ergebnis an unser Team gesendet — wir melden uns in Kürze.",
+    },
+    recs: {
+      "KI-Einsteiger": ["1–2 konkrete Anwendungsfälle wählen, die am meisten Zeit sparen.", "Zentrale Unternehmensdaten bündeln.", "Discovery-Call für Quick Wins buchen."],
+      "KI-Aufbauer": ["Bestehende Tools verbinden, damit Daten automatisch fließen.", "Einen Workflow Ende-zu-Ende automatisieren.", "Kleines Vorreiter-Team weiterbilden."],
+      "KI-Bereit": ["Autonome Agenten auf einen ganzen Prozess setzen.", "Monitoring & Validierungs-Schleifen ergänzen.", "Automatisierungen nach ROI priorisieren."],
+      "KI-Beschleuniger": ["Agenten über Abteilungen skalieren.", "Governance, Security & KPIs aufsetzen.", "Messbaren ROI im Quartal anpeilen."],
+    },
+  },
+};
+
+function readinessLevel(dict, score) {
+  let chosen = dict.levels[0];
+  for (const l of dict.levels) if (score >= l.min) chosen = l;
+  return chosen;
+}
+
+function ReadinessTest() {
+  const { lang } = useI18n();
+  const dict = READINESS[lang] || READINESS.en;
+  const dims = dict.dimensions;
+  const TOTAL = dims.length;
+
+  const [stage, setStage] = useState("quiz"); // quiz | form | result
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const [contact, setContact] = useState({ name: "", email: "", company: "", phone: "", website: "", industry: "", challenge: "", consent: false });
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const maxPoints = TOTAL * 3;
+  const sumPoints = dims.reduce((s, d) => s + (answers[d.key] ?? 0), 0);
+  const score = Math.round((sumPoints / maxPoints) * 100);
+  const level = readinessLevel(dict, score);
+  const perDim = dims.map((d) => ({ key: d.key, label: d.label, pct: Math.round(((answers[d.key] ?? 0) / 3) * 100) }));
+
+  const choose = (dimKey, points) => {
+    setAnswers((a) => ({ ...a, [dimKey]: points }));
+    const last = step >= TOTAL - 1;
+    setTimeout(() => { if (last) setStage("form"); else setStep(step + 1); }, 190);
+  };
+
+  const goBack = () => {
+    if (stage === "form") { setStage("quiz"); setStep(TOTAL - 1); return; }
+    if (step > 0) setStep(step - 1);
+  };
+
+  const setField = (k, v) => setContact((c) => ({ ...c, [k]: v }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!contact.name || !contact.email || !contact.company || !contact.consent) { setError(dict.form.required); return; }
+    setError(""); setSending(true);
+    const payload = {
+      contact, score, level: level.label,
+      dimensions: perDim, answers: dims.map((d) => ({ dimension: d.label, question: d.question, points: answers[d.key] ?? 0 })),
+      lang, source: "readiness-test",
+    };
+    try {
+      const res = await fetch("/api/lead", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (res.ok) setSent(true);
+    } catch (err) { /* backend not configured yet — still show the result */ }
+    setSending(false);
+    setStage("result");
+  };
+
+  const progressPct = stage === "result" ? 100 : Math.round(((stage === "form" ? TOTAL : step) / TOTAL) * 100);
+
+  return (
+    <section className="readiness">
+      <div className="readiness-head">
+        <span className="outline-pill"><Zap size={14} /> {dict.kicker}</span>
+        <h1>{dict.title}</h1>
+      </div>
+
+      <div className="readiness-card">
+        {stage !== "result" && (
+          <div className="readiness-progress" aria-hidden="true"><span style={{ width: `${progressPct}%` }} /></div>
+        )}
+
+        {stage === "quiz" && (() => {
+          const d = dims[step];
+          const selected = answers[d.key];
+          return (
+            <div className="readiness-quiz">
+              <div className="readiness-step-meta">{dict.step} {step + 1} {dict.of} {TOTAL} · {d.label}</div>
+              <h2 className="readiness-question">{d.question}</h2>
+              <div className="readiness-options">
+                {d.options.map((o) => (
+                  <button type="button" key={o.label}
+                    className={`readiness-option ${selected === o.points ? "is-selected" : ""}`}
+                    onClick={() => choose(d.key, o.points)}>
+                    <span className="readiness-dot" />{o.label}
+                  </button>
+                ))}
+              </div>
+              <div className="readiness-nav">
+                <button type="button" className="readiness-back" onClick={goBack} disabled={step === 0}><ArrowLeft size={16} /> {dict.back}</button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {stage === "form" && (
+          <form className="readiness-form" onSubmit={submit}>
+            <div className="readiness-step-meta">{dict.toResult} · {dict.step} {TOTAL} {dict.of} {TOTAL}</div>
+            <h2 className="readiness-question">{dict.form.heading}</h2>
+            <p className="readiness-form-sub">{dict.form.sub}</p>
+            <div className="readiness-fields">
+              <label>{dict.form.name} *<input value={contact.name} onChange={(e) => setField("name", e.target.value)} required /></label>
+              <label>{dict.form.email} *<input type="email" value={contact.email} onChange={(e) => setField("email", e.target.value)} required /></label>
+              <label>{dict.form.company} *<input value={contact.company} onChange={(e) => setField("company", e.target.value)} required /></label>
+              <label>{dict.form.phone}<input value={contact.phone} onChange={(e) => setField("phone", e.target.value)} /></label>
+              <label>{dict.form.website}<input value={contact.website} onChange={(e) => setField("website", e.target.value)} placeholder="https://" /></label>
+              <label>{dict.form.industry}
+                <select value={contact.industry} onChange={(e) => setField("industry", e.target.value)}>
+                  <option value="">—</option>
+                  {dict.industries.map((i) => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </label>
+              <label className="readiness-full">{dict.form.challenge}<textarea rows="3" value={contact.challenge} onChange={(e) => setField("challenge", e.target.value)} /></label>
+            </div>
+            <label className="readiness-consent">
+              <input type="checkbox" checked={contact.consent} onChange={(e) => setField("consent", e.target.checked)} />
+              <span>{dict.form.consent} <Link to="/legal/privacy-policy">{dict.form.privacy}</Link>.</span>
+            </label>
+            {error && <p className="readiness-error">{error}</p>}
+            <div className="readiness-nav">
+              <button type="button" className="readiness-back" onClick={goBack}><ArrowLeft size={16} /> {dict.back}</button>
+              <button type="submit" className="primary-button glow-button" disabled={sending}>
+                {sending ? dict.form.sending : dict.form.submit} <ArrowRight size={18} />
+              </button>
+            </div>
+          </form>
+        )}
+
+        {stage === "result" && (
+          <div className="readiness-result">
+            <span className="outline-pill">{dict.result.pill}</span>
+            <div className="readiness-score-row">
+              <div className={`readiness-score-badge tone-${level.min >= 85 ? "green" : level.min >= 65 ? "indigo" : level.min >= 40 ? "sky" : "amber"}`}>
+                <strong>{score}%</strong><span>{level.label}</span>
+              </div>
+              <p className="readiness-blurb">{level.blurb}</p>
+            </div>
+
+            <h3 className="readiness-sub-title">{dict.result.dimensionsTitle}</h3>
+            <div className="readiness-dims">
+              {perDim.map((d) => (
+                <div className="readiness-dim" key={d.key}>
+                  <div className="readiness-dim-head"><span>{d.label}</span><b>{d.pct}%</b></div>
+                  <div className="readiness-dim-bar"><span style={{ width: `${d.pct}%` }} /></div>
+                </div>
+              ))}
+            </div>
+
+            <h3 className="readiness-sub-title">{dict.result.recTitle}</h3>
+            <ul className="readiness-recs">
+              {(dict.recs[level.label] || []).map((r) => <li key={r}><Check size={17} /> {r}</li>)}
+            </ul>
+
+            <div className="readiness-cta">
+              <div>
+                <strong>{dict.result.ctaTitle}</strong>
+                <p>{dict.result.ctaText}</p>
+                {sent && <p className="readiness-thanks"><Check size={15} /> {dict.result.thanks}</p>}
+              </div>
+              <a className="primary-button glow-button" href="https://cal.com/" target="_blank" rel="noreferrer">{dict.result.cta} <ArrowRight size={18} /></a>
+            </div>
+            <button type="button" className="readiness-restart" onClick={() => { setAnswers({}); setStep(0); setContact({ name: "", email: "", company: "", phone: "", website: "", industry: "", challenge: "", consent: false }); setSent(false); setStage("quiz"); }}>{dict.result.restart}</button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function PotentialAnalysisPage() {
   const { t } = useI18n();
   const [loginOpen, setLoginOpen] = useState(false);
@@ -1542,6 +1838,18 @@ function PotentialAnalysisPage() {
   const [resultText, setResultText] = useState("Complete the fields and sign in to unlock your autonomous growth potential.");
   const analysisPath = useLocationPath().split("#")[0];
   const showQuestionnaire = analysisPath === "/potential-analysis/fragebogen";
+
+  if (showQuestionnaire) {
+    return (
+      <Shell>
+        <main>
+          <section className="potential-login-page readiness-page">
+            <ReadinessTest />
+          </section>
+        </main>
+      </Shell>
+    );
+  }
 
   const signIn = () => {
     setSignedIn(true);
