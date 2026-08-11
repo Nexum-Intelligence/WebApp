@@ -33,6 +33,7 @@ import previewModuleUrl from "./assets/preview-choose-module.html?url";
 import previewValidateUrl from "./assets/preview-validate.html?url";
 import previewContactUrl from "./assets/preview-contact.html?url";
 import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
+import { SUITES, PACKAGES, packageByKey } from "./modules.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -619,7 +620,7 @@ function Header() {
           <Mail size={18} />
         </Link>
         <LanguageSelector />
-        <Link className="header-cta glow-button" to="/potential-analysis">{t.btn.platform}</Link>
+        <Link className="header-cta glow-button" to="/platform">{t.btn.platform}</Link>
       </div>
       <button className="menu-button" onClick={() => setOpen(true)} aria-label="Open menu">
         <Menu size={22} />
@@ -1855,6 +1856,262 @@ function ReadinessTest() {
   );
 }
 
+const Lock = (props) => <Icon {...props}><rect x="4" y="11" width="16" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Icon>;
+
+const SUITE_ICONS = {
+  foundation: ShieldCheck, strategy: Sparkles, venture: Zap, growth: Globe,
+  operations: LayoutDashboard, intelligence: BrainCircuit, execution: Workflow, specialist: Cpu,
+};
+
+const RUN_STATUS = {
+  queued: { label: "Queued", tone: "amber" },
+  running: { label: "Running", tone: "sky" },
+  done: { label: "Completed", tone: "green" },
+  completed: { label: "Completed", tone: "green" },
+  error: { label: "Error", tone: "red" },
+};
+
+function usePlatformUser() {
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("nexum_user") || "null"); } catch { return null; }
+  });
+  const save = (u) => {
+    setUser(u);
+    try {
+      if (u) window.localStorage.setItem("nexum_user", JSON.stringify(u));
+      else window.localStorage.removeItem("nexum_user");
+    } catch (e) {}
+  };
+  return [user, save];
+}
+
+function PlatformSignIn({ onSignIn }) {
+  const [form, setForm] = useState({ name: "", email: "", company: "" });
+  const [err, setErr] = useState("");
+  const submit = (e) => {
+    e.preventDefault();
+    if (!form.name || !form.email) { setErr("Please enter your name and work email."); return; }
+    onSignIn({ ...form });
+  };
+  return (
+    <div className="plat-auth">
+      <div className="plat-auth-card">
+        <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>
+        <h1>Sign in to your platform</h1>
+        <p>Access your suites and run your NEXUM agent modules.</p>
+        <form onSubmit={submit}>
+          <label>Full name<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label>
+          <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></label>
+          <label>Company<input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></label>
+          {err && <p className="plat-err">{err}</p>}
+          <button className="primary-button glow-button" type="submit">Enter platform <ArrowRight size={18} /></button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ModuleModal({ module, ctx, onClose, onSubmitted }) {
+  const [values, setValues] = useState({});
+  const [err, setErr] = useState("");
+  const [sending, setSending] = useState(false);
+  const set = (k, v) => setValues((s) => ({ ...s, [k]: v }));
+  const submit = async (e) => {
+    e.preventDefault();
+    const missing = module.fields.filter((f) => f.required && !values[f.key]);
+    if (missing.length) { setErr("Please fill in the required fields."); return; }
+    setErr(""); setSending(true);
+    const payload = {
+      email: ctx.user.email, name: ctx.user.name, company: ctx.user.company,
+      packageKey: ctx.pkg.key, suiteKey: module.suiteKey,
+      moduleKey: module.key, moduleName: module.name,
+      inputs: values, lang: ctx.lang, source: "platform",
+    };
+    let run = null;
+    try {
+      const res = await fetch("/api/module-run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      run = data.run;
+    } catch (e) { /* backend not configured — still show the run locally */ }
+    if (!run) run = { id: `local-${Date.now()}`, created_at: new Date().toISOString(), module_key: module.key, module_name: module.name, suite_key: module.suiteKey, status: "queued" };
+    setSending(false);
+    onSubmitted(run);
+  };
+  return (
+    <div className="plat-modal-overlay" onClick={onClose}>
+      <div className="plat-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="plat-modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
+        <span className="outline-pill">{module.suiteName}</span>
+        <h2>{module.name}</h2>
+        <p className="plat-modal-sub">{module.tagline}</p>
+        <form onSubmit={submit} className="plat-form">
+          {module.fields.map((f) => (
+            <label key={f.key} className={f.type === "textarea" ? "plat-full" : ""}>
+              {f.label}{f.required && <span className="plat-req"> *</span>}
+              {f.type === "textarea" ? (
+                <textarea rows="3" value={values[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder || ""} />
+              ) : f.type === "select" ? (
+                <select value={values[f.key] || ""} onChange={(e) => set(f.key, e.target.value)}>
+                  <option value="">—</option>
+                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input value={values[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder || ""} />
+              )}
+            </label>
+          ))}
+          {err && <p className="plat-err plat-full">{err}</p>}
+          <div className="plat-modal-actions plat-full">
+            <button type="button" className="plat-ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="primary-button glow-button" disabled={sending}>{sending ? "Starting…" : "Start module"} <ArrowRight size={18} /></button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PlatformPage() {
+  const { lang } = useI18n();
+  const [user, setUser] = usePlatformUser();
+  const [pkgKey, setPkgKey] = useState(() => {
+    try { return window.localStorage.getItem("nexum_pkg") || "venture-starter"; } catch { return "venture-starter"; }
+  });
+  const [openModule, setOpenModule] = useState(null);
+  const [runs, setRuns] = useState([]);
+  const [toast, setToast] = useState("");
+
+  const pkg = packageByKey(pkgKey);
+
+  useEffect(() => {
+    if (!user) return;
+    let ok = true;
+    fetch(`/api/module-run?email=${encodeURIComponent(user.email)}`)
+      .then((r) => r.json())
+      .then((d) => { if (ok && Array.isArray(d.runs)) setRuns(d.runs); })
+      .catch(() => {});
+    return () => { ok = false; };
+  }, [user]);
+
+  const setPackage = (k) => { setPkgKey(k); try { window.localStorage.setItem("nexum_pkg", k); } catch (e) {} };
+  const lastRunFor = (moduleKey) => runs.find((r) => r.module_key === moduleKey);
+
+  const onSubmitted = (run) => {
+    setRuns((r) => [run, ...r.filter((x) => x.id !== run.id)]);
+    setOpenModule(null);
+    setToast(`“${run.module_name}” started — your agent is now working on it.`);
+    window.setTimeout(() => setToast(""), 6000);
+  };
+
+  if (!user) {
+    return (<Shell><main><section className="platform-page">
+      <PlatformSignIn onSignIn={setUser} />
+    </section></main></Shell>);
+  }
+
+  const firstName = (user.name || "").split(" ")[0] || user.name;
+
+  return (
+    <Shell>
+      <main>
+        <section className="platform-page">
+          <header className="plat-head">
+            <div>
+              <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>
+              <h1>Welcome back, {firstName}</h1>
+              <p>Fill out a module and our agents produce your deliverables. Your plan defines which suites are unlocked.</p>
+            </div>
+            <div className="plat-head-side">
+              <label className="plat-plan">Your plan
+                <select value={pkgKey} onChange={(e) => setPackage(e.target.value)}>
+                  {PACKAGES.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+                </select>
+              </label>
+              <button className="plat-ghost" onClick={() => setUser(null)}>Sign out</button>
+            </div>
+          </header>
+
+          <div className="plat-plan-bar">
+            <span><b>{pkg.name}</b> · {pkg.priceOnce} once · {pkg.priceYear}</span>
+            <span className="plat-plan-target">{pkg.target}</span>
+          </div>
+
+          {toast && <div className="plat-toast"><Check size={16} /> {toast}</div>}
+
+          {SUITES.map((suite) => {
+            const unlocked = pkg.suites.includes(suite.key);
+            const Ico = SUITE_ICONS[suite.key] || Sparkles;
+            if (suite.base) {
+              return (
+                <div className="plat-suite plat-base" key={suite.key}>
+                  <div className="plat-suite-head"><Ico size={18} /><h2>{suite.name}</h2><span className="plat-included">Included</span></div>
+                  <p className="plat-suite-role">{suite.role}</p>
+                </div>
+              );
+            }
+            return (
+              <div className={`plat-suite ${unlocked ? "" : "is-locked"}`} key={suite.key}>
+                <div className="plat-suite-head">
+                  <Ico size={18} /><h2>{suite.name}</h2>
+                  {unlocked ? <span className="plat-role-tag">{suite.role}</span> : <span className="plat-locked"><Lock size={13} /> Locked</span>}
+                </div>
+                <div className="plat-modules">
+                  {suite.modules.map((m) => {
+                    const last = lastRunFor(m.key);
+                    const st = last ? (RUN_STATUS[last.status] || RUN_STATUS.queued) : null;
+                    return (
+                      <div className="plat-module" key={m.key}>
+                        <h3>{m.name}</h3>
+                        <p>{m.tagline}</p>
+                        <div className="plat-deliverables">
+                          {m.deliverables.slice(0, 4).map((d) => <span key={d}>{d}</span>)}
+                        </div>
+                        <div className="plat-module-foot">
+                          {st && <span className={`plat-status tone-${st.tone}`}>{st.label}</span>}
+                          {unlocked ? (
+                            <button className="plat-start" onClick={() => setOpenModule({ ...m, suiteKey: suite.key, suiteName: suite.name })}>
+                              {last ? "Run again" : "Start module"} <ArrowRight size={15} />
+                            </button>
+                          ) : (
+                            <button className="plat-start is-locked" disabled><Lock size={13} /> Upgrade to unlock</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!unlocked && <p className="plat-upsell">Unlock the {suite.name} by upgrading your plan.</p>}
+              </div>
+            );
+          })}
+
+          <div className="plat-runs">
+            <h2>Your module runs</h2>
+            {runs.length === 0 ? (
+              <p className="plat-empty">No runs yet. Start a module above and it will appear here while your agent works on it.</p>
+            ) : (
+              <div className="plat-run-list">
+                {runs.map((r) => {
+                  const st = RUN_STATUS[r.status] || RUN_STATUS.queued;
+                  return (
+                    <div className="plat-run" key={r.id}>
+                      <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span></div>
+                      <span className={`plat-status tone-${st.tone}`}>{st.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
+      {openModule && (
+        <ModuleModal module={openModule} ctx={{ user, pkg, lang }} onClose={() => setOpenModule(null)} onSubmitted={onSubmitted} />
+      )}
+    </Shell>
+  );
+}
+
 function PotentialAnalysisPage() {
   const { t } = useI18n();
   const [loginOpen, setLoginOpen] = useState(false);
@@ -2220,6 +2477,7 @@ function Routes() {
   if (path === "/agent-platform") return <AgentPlatformPage />;
   if (path === "/potential-analysis") return <PotentialAnalysisPage />;
   if (path === "/potential-analysis/fragebogen") return <PotentialAnalysisPage />;
+  if (path === "/platform") return <PlatformPage />;
   if (path === "/use-case-demo") return <UseCaseDemoPage />;
   if (path === "/blog") return <BlogPage />;
   if (path.startsWith("/blog/")) return <BlogPostPage />;

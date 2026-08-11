@@ -4347,3 +4347,96 @@ html[data-lite="1"] .hero-logo-mark {
   .readiness-fields { grid-template-columns: 1fr; }
   .readiness-score-row { justify-content: center; text-align: center; }
 }
+
+/* ---------- Platform dashboard ---------- */
+.platform-page {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 104px 0 72px;
+}
+.plat-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; margin-bottom: 22px; }
+.plat-head h1 { margin: 14px 0 8px; color: #fff; font-family: "Zalando Sans Expanded", "Poppins", "Inter", sans-serif; font-size: clamp(26px, 3vw, 40px); line-height: 1.1; }
+.plat-head p { margin: 0; color: var(--soft); max-width: 62ch; }
+.plat-head-side { display: flex; align-items: center; gap: 12px; }
+.plat-plan { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--soft); }
+.plat-plan select, .plat-form select, .plat-form input, .plat-form textarea, .plat-auth-card input {
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(129, 140, 248, 0.28);
+  border-radius: 10px; color: #fff; padding: 10px 12px; font: inherit;
+}
+.plat-plan select:focus, .plat-form select:focus, .plat-form input:focus, .plat-form textarea:focus, .plat-auth-card input:focus { outline: none; border-color: rgba(129, 140, 248, 0.7); }
+.plat-ghost {
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(129, 140, 248, 0.28);
+  border-radius: 10px; color: #fff; padding: 10px 16px; cursor: pointer; font: inherit; transition: border-color .15s, background .15s;
+}
+.plat-ghost:hover { border-color: rgba(129, 140, 248, 0.6); background: rgba(129, 140, 248, 0.1); }
+.plat-plan-bar {
+  display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  border: 1px solid rgba(129, 140, 248, 0.24); border-radius: 14px;
+  background: rgba(129, 140, 248, 0.06); padding: 12px 18px; color: var(--soft); margin-bottom: 22px;
+}
+.plat-plan-bar b { color: #fff; }
+.plat-plan-target { opacity: .8; }
+.plat-toast {
+  display: flex; align-items: center; gap: 8px; color: #86efac;
+  border: 1px solid rgba(134, 239, 172, 0.4); background: rgba(34, 197, 94, 0.1);
+  border-radius: 12px; padding: 12px 16px; margin-bottom: 20px;
+}
+.plat-suite { border: 1px solid rgba(129, 140, 248, 0.2); border-radius: 20px; background: linear-gradient(180deg, rgba(17, 18, 34, 0.7), rgba(13, 14, 30, 0.7)); padding: 20px clamp(16px, 3vw, 26px); margin-bottom: 18px; }
+.plat-suite.is-locked { opacity: 0.72; }
+.plat-suite-head { display: flex; align-items: center; gap: 10px; color: #fff; }
+.plat-suite-head h2 { margin: 0; font-size: 19px; font-family: "Zalando Sans Expanded", "Poppins", "Inter", sans-serif; }
+.plat-suite-head svg { color: var(--accent); }
+.plat-role-tag { color: var(--soft); font-size: 12.5px; margin-left: auto; }
+.plat-locked { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 999px; padding: 3px 10px; }
+.plat-included { margin-left: auto; font-size: 12px; color: #86efac; border: 1px solid rgba(134, 239, 172, 0.4); border-radius: 999px; padding: 3px 10px; }
+.plat-base { background: rgba(129, 140, 248, 0.05); }
+.plat-suite-role { color: var(--soft); margin: 8px 0 0; font-size: 13.5px; }
+.plat-modules { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+.plat-module { border: 1px solid rgba(129, 140, 248, 0.22); border-radius: 14px; background: rgba(255, 255, 255, 0.02); padding: 16px 18px; display: flex; flex-direction: column; }
+.plat-module h3 { margin: 0 0 6px; color: #fff; font-size: 16px; }
+.plat-module > p { margin: 0 0 12px; color: var(--soft); font-size: 13.5px; line-height: 1.5; }
+.plat-deliverables { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.plat-deliverables span { font-size: 11.5px; color: var(--soft); border: 1px solid rgba(129, 140, 248, 0.22); border-radius: 999px; padding: 3px 9px; }
+.plat-module-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
+.plat-start { display: inline-flex; align-items: center; gap: 6px; background: var(--accent); color: #0a0a0f; border: none; border-radius: 10px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.plat-start:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(129, 140, 248, 0.35); }
+.plat-start.is-locked { background: rgba(255, 255, 255, 0.06); color: var(--soft); cursor: not-allowed; box-shadow: none; transform: none; }
+.plat-upsell { margin: 12px 0 0; font-size: 12.5px; color: #fbbf24; }
+.plat-status { font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 3px 10px; border: 1px solid transparent; }
+.plat-status.tone-amber { color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.1); }
+.plat-status.tone-sky { color: #7dd3fc; border-color: rgba(125, 211, 252, 0.4); background: rgba(56, 189, 248, 0.1); }
+.plat-status.tone-green { color: #86efac; border-color: rgba(134, 239, 172, 0.4); background: rgba(34, 197, 94, 0.1); }
+.plat-status.tone-red { color: #fca5a5; border-color: rgba(252, 165, 165, 0.4); background: rgba(239, 68, 68, 0.1); }
+.plat-runs { margin-top: 26px; }
+.plat-runs h2 { color: #fff; font-size: 20px; font-family: "Zalando Sans Expanded", "Poppins", "Inter", sans-serif; margin: 0 0 14px; }
+.plat-empty { color: var(--soft); }
+.plat-run-list { display: flex; flex-direction: column; gap: 10px; }
+.plat-run { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(129, 140, 248, 0.2); border-radius: 12px; background: rgba(255, 255, 255, 0.02); padding: 12px 16px; }
+.plat-run > div { display: flex; flex-direction: column; gap: 3px; }
+.plat-run b { color: #fff; }
+.plat-run span { color: var(--soft); font-size: 12.5px; }
+/* auth gate */
+.plat-auth { display: flex; justify-content: center; padding: 20px 0 40px; }
+.plat-auth-card { width: min(440px, 100%); border: 1px solid rgba(129, 140, 248, 0.28); border-radius: 20px; background: linear-gradient(180deg, rgba(17, 18, 34, 0.96), rgba(13, 14, 30, 0.94)); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); padding: 30px; }
+.plat-auth-card h1 { color: #fff; font-family: "Zalando Sans Expanded", "Poppins", "Inter", sans-serif; font-size: 26px; margin: 16px 0 6px; }
+.plat-auth-card > p { color: var(--soft); margin: 0 0 20px; }
+.plat-auth-card form { display: flex; flex-direction: column; gap: 14px; }
+.plat-auth-card label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; color: var(--soft); }
+.plat-auth-card button { margin-top: 6px; }
+/* module modal */
+.plat-modal-overlay { position: fixed; inset: 0; background: rgba(4, 5, 12, 0.7); backdrop-filter: blur(4px); display: flex; align-items: flex-start; justify-content: center; padding: 60px 16px; overflow-y: auto; z-index: 120; }
+.plat-modal { position: relative; width: min(640px, 100%); border: 1px solid rgba(129, 140, 248, 0.32); border-radius: 20px; background: linear-gradient(180deg, rgba(19, 20, 38, 0.98), rgba(13, 14, 30, 0.98)); box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6); padding: 28px clamp(20px, 3vw, 32px); }
+.plat-modal-close { position: absolute; top: 16px; right: 16px; background: rgba(255, 255, 255, 0.06); border: none; border-radius: 8px; color: #fff; width: 32px; height: 32px; display: grid; place-items: center; cursor: pointer; }
+.plat-modal h2 { color: #fff; font-family: "Zalando Sans Expanded", "Poppins", "Inter", sans-serif; font-size: 24px; margin: 14px 0 6px; }
+.plat-modal-sub { color: var(--soft); margin: 0 0 20px; }
+.plat-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.plat-form label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; color: var(--soft); }
+.plat-form .plat-full { grid-column: 1 / -1; }
+.plat-req { color: var(--accent); }
+.plat-err { color: #fca5a5; font-size: 13px; margin: 4px 0 0; }
+.plat-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+@media (max-width: 720px) {
+  .plat-modules { grid-template-columns: 1fr; }
+  .plat-form { grid-template-columns: 1fr; }
+  .plat-head { align-items: flex-start; }
+}
