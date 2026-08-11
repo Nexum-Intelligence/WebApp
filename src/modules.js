@@ -279,8 +279,96 @@ export const PACKAGES = [
   },
 ];
 
+// ---- Company workspace sections --------------------------------------------
+// Business data the owner maintains once. Stored per user and passed to agents
+// as context, so every module can build on the same company knowledge.
+
+export const COMPANY_SECTIONS = [
+  {
+    key: "basics", name: "Company Basics", icon: "shield",
+    intro: "The essentials every agent needs about your company.",
+    fields: [
+      { key: "companyName", label: "Company name", type: "text" },
+      { key: "industry", label: "Industry", type: "select", options: ["Software / SaaS", "E-Commerce / Retail", "Manufacturing", "Professional Services", "Finance / Insurance", "Healthcare", "Marketing / Agency", "Logistics", "Other"] },
+      { key: "stage", label: "Stage", type: "select", options: ["Idea", "MVP", "Early revenue", "Scaling", "Established"] },
+      { key: "size", label: "Company size", type: "select", options: ["Solo", "2–10", "11–50", "51–200", "200+"] },
+      { key: "website", label: "Website", type: "text", placeholder: "https://" },
+      { key: "location", label: "Main location / markets", type: "text" },
+      { key: "description", label: "What does your company do?", type: "textarea" },
+    ],
+  },
+  {
+    key: "product", name: "Product & Offer", icon: "spark",
+    intro: "What you sell and why it's valuable.",
+    fields: [
+      { key: "mainOffer", label: "Main product / service", type: "textarea" },
+      { key: "valueProp", label: "Core value proposition", type: "textarea" },
+      { key: "usp", label: "What makes you different (USP)?", type: "textarea" },
+      { key: "pricingModel", label: "Pricing model", type: "text", placeholder: "e.g. subscription, one-off, retainer" },
+    ],
+  },
+  {
+    key: "customers", name: "Customers & Market", icon: "compass",
+    intro: "Who you serve and the market you operate in.",
+    fields: [
+      { key: "targetCustomer", label: "Ideal customer", type: "textarea" },
+      { key: "segments", label: "Key segments", type: "text" },
+      { key: "marketRegion", label: "Target regions", type: "text" },
+      { key: "competitors", label: "Main competitors", type: "textarea" },
+    ],
+  },
+  {
+    key: "marketing", name: "Brand & Marketing", icon: "growth",
+    intro: "How you show up and win attention.",
+    fields: [
+      { key: "brandValues", label: "Brand values", type: "textarea" },
+      { key: "tone", label: "Brand tone", type: "select", options: ["Bold", "Premium", "Friendly", "Technical"] },
+      { key: "channels", label: "Marketing channels", type: "text" },
+      { key: "positioning", label: "Positioning statement", type: "textarea" },
+    ],
+  },
+  {
+    key: "finance", name: "Finance", icon: "rocket",
+    intro: "Your financial picture and funding status.",
+    fields: [
+      { key: "revenue", label: "Current annual revenue", type: "text" },
+      { key: "fundingStatus", label: "Funding status", type: "select", options: ["Bootstrapped", "Pre-seed", "Seed", "Series A+", "Profitable"] },
+      { key: "mainCosts", label: "Main cost drivers", type: "textarea" },
+      { key: "financialGoals", label: "Financial goals", type: "textarea" },
+    ],
+  },
+  {
+    key: "team", name: "Team & Org", icon: "dashboard",
+    intro: "Your people and organisational setup.",
+    fields: [
+      { key: "teamSize", label: "Team size", type: "text" },
+      { key: "keyRoles", label: "Key roles", type: "textarea" },
+      { key: "hiringNeeds", label: "Hiring needs", type: "textarea" },
+    ],
+  },
+  {
+    key: "goals", name: "Goals & Strategy", icon: "brain",
+    intro: "Where you're heading and what's in the way.",
+    fields: [
+      { key: "vision", label: "Vision", type: "textarea" },
+      { key: "goals12m", label: "Goals for the next 12 months", type: "textarea" },
+      { key: "biggestChallenge", label: "Biggest challenge right now", type: "textarea" },
+      { key: "priorities", label: "Top priorities", type: "text" },
+    ],
+  },
+];
+
 export function packageByKey(key) {
   return PACKAGES.find((p) => p.key === key) || PACKAGES[0];
+}
+
+// Every module flattened with its suite context (for tabs & lookups).
+export function allModules() {
+  const out = [];
+  for (const suite of SUITES) {
+    for (const m of suite.modules || []) out.push({ ...m, suiteKey: suite.key, suiteName: suite.name });
+  }
+  return out;
 }
 
 // Flat lookup of every module with its suite context.

@@ -50,6 +50,26 @@ The serverless function uses the **service_role** key, so Row Level Security
 is bypassed server-side. If you later expose the table to the browser client,
 add RLS policies (e.g. `email = auth.jwt() ->> 'email'`).
 
+### Company profile table
+
+The cockpit's **Company data** tabs (Basics, Product, Customers, Marketing,
+Finance, Team, Goals) are saved here — one row per user — and passed to every
+module run as context (`inputs._company`), so agents share the same business
+knowledge:
+
+```sql
+create table if not exists public.company_profiles (
+  email       text primary key,
+  name        text,
+  company     text,
+  data        jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+```
+
+`api/company.js` upserts on the `email` primary key
+(`Prefer: resolution=merge-duplicates`).
+
 ## 3. Environment variables (Vercel → Settings → Environment Variables)
 
 Reuses the same Supabase project as the readiness lead form:

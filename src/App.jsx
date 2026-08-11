@@ -33,7 +33,7 @@ import previewModuleUrl from "./assets/preview-choose-module.html?url";
 import previewValidateUrl from "./assets/preview-validate.html?url";
 import previewContactUrl from "./assets/preview-contact.html?url";
 import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
-import { SUITES, PACKAGES, packageByKey } from "./modules.js";
+import { SUITES, PACKAGES, COMPANY_SECTIONS, packageByKey, allModules } from "./modules.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -1911,61 +1911,253 @@ function PlatformSignIn({ onSignIn }) {
   );
 }
 
-function ModuleModal({ module, ctx, onClose, onSubmitted }) {
-  const [values, setValues] = useState({});
+const PLAT_ICONS = {
+  shield: ShieldCheck, spark: Sparkles, compass: Globe, growth: Zap,
+  rocket: Workflow, dashboard: LayoutDashboard, brain: BrainCircuit, cpu: Cpu,
+};
+
+function PlatField({ f, value, onChange }) {
+  return (
+    <label className={f.type === "textarea" ? "plat-full" : ""}>
+      {f.label}{f.required && <span className="plat-req"> *</span>}
+      {f.type === "textarea" ? (
+        <textarea rows="3" value={value || ""} onChange={(e) => onChange(f.key, e.target.value)} placeholder={f.placeholder || ""} />
+      ) : f.type === "select" ? (
+        <select value={value || ""} onChange={(e) => onChange(f.key, e.target.value)}>
+          <option value="">—</option>
+          {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input value={value || ""} onChange={(e) => onChange(f.key, e.target.value)} placeholder={f.placeholder || ""} />
+      )}
+    </label>
+  );
+}
+
+function OverviewView({ user, pkg, runs, company, goto }) {
+  const modulesAvailable = allModules().filter((m) => pkg.suites.includes(m.suiteKey)).length;
+  const totalCompanyFields = COMPANY_SECTIONS.reduce((n, s) => n + s.fields.length, 0);
+  const filledCompanyFields = COMPANY_SECTIONS.reduce(
+    (n, s) => n + s.fields.filter((f) => (company[s.key] || {})[f.key]).length, 0);
+  const completeness = totalCompanyFields ? Math.round((filledCompanyFields / totalCompanyFields) * 100) : 0;
+  const startedModules = new Set(runs.map((r) => r.module_key)).size;
+  const done = runs.filter((r) => r.status === "done" || r.status === "completed").length;
+  const kpis = [
+    { label: "Company profile", value: `${completeness}%`, hint: "complete" },
+    { label: "Modules available", value: modulesAvailable, hint: `in ${pkg.name}` },
+    { label: "Modules started", value: startedModules, hint: `${runs.length} runs total` },
+    { label: "Deliverables ready", value: done, hint: "completed by agents" },
+  ];
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1>Overview</h1><p>Your business at a glance. Maintain your company data, run modules, collect deliverables.</p></div>
+      <div className="plat-kpis">
+        {kpis.map((k) => (
+          <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span><span className="plat-kpi-hint">{k.hint}</span></div>
+        ))}
+      </div>
+
+      {completeness < 100 && (
+        <div className="plat-card plat-cta-card">
+          <div>
+            <h3>Complete your company profile</h3>
+            <p>The more you fill in, the sharper every agent's output. You're at {completeness}%.</p>
+            <div className="plat-progress"><span style={{ width: `${completeness}%` }} /></div>
+          </div>
+          <button className="plat-start" onClick={() => goto("company:basics")}>Open company profile <ArrowRight size={15} /></button>
+        </div>
+      )}
+
+      <div className="plat-two-col">
+        <div className="plat-card">
+          <h3>Recent activity</h3>
+          {runs.length === 0 ? (
+            <p className="plat-empty">No module runs yet. Open a module from the sidebar to get started.</p>
+          ) : (
+            <div className="plat-run-list">
+              {runs.slice(0, 6).map((r) => {
+                const st = RUN_STATUS[r.status] || RUN_STATUS.queued;
+                return (
+                  <button className="plat-run plat-run-btn" key={r.id} onClick={() => goto(`module:${r.module_key}`)}>
+                    <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span></div>
+                    <span className={`plat-status tone-${st.tone}`}>{st.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="plat-card">
+          <h3>Your suites</h3>
+          <div className="plat-suite-list">
+            {SUITES.map((s) => {
+              const unlocked = pkg.suites.includes(s.key);
+              const Ico = SUITE_ICONS[s.key] || Sparkles;
+              return (
+                <div className={`plat-suite-row ${unlocked ? "" : "is-locked"}`} key={s.key}>
+                  <Ico size={16} /><span>{s.name}</span>
+                  {unlocked ? <span className="plat-included">On</span> : <span className="plat-locked"><Lock size={12} /> Locked</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompanySectionView({ section, data, onSave }) {
+  const [values, setValues] = useState(data || {});
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setValues(data || {}); setSaved(false); }, [section.key]);
+  const set = (k, v) => { setValues((s) => ({ ...s, [k]: v })); setSaved(false); };
+  const Ico = PLAT_ICONS[section.icon] || ShieldCheck;
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1><Ico size={22} /> {section.name}</h1><p>{section.intro}</p></div>
+      <div className="plat-card">
+        <div className="plat-form">
+          {section.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
+        </div>
+        <div className="plat-save-row">
+          {saved && <span className="plat-saved"><Check size={15} /> Saved</span>}
+          <button className="plat-start" onClick={() => { onSave(section.key, values); setSaved(true); }}>Save section <Check size={15} /></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade }) {
+  const initial = {};
+  module.fields.forEach((f) => { if (companyFlat[f.key]) initial[f.key] = companyFlat[f.key]; });
+  const [values, setValues] = useState(initial);
   const [err, setErr] = useState("");
   const [sending, setSending] = useState(false);
+  useEffect(() => {
+    const init = {};
+    module.fields.forEach((f) => { if (companyFlat[f.key]) init[f.key] = companyFlat[f.key]; });
+    setValues(init); setErr("");
+  }, [module.key]);
   const set = (k, v) => setValues((s) => ({ ...s, [k]: v }));
+  const moduleRuns = runs.filter((r) => r.module_key === module.key);
   const submit = async (e) => {
     e.preventDefault();
     const missing = module.fields.filter((f) => f.required && !values[f.key]);
     if (missing.length) { setErr("Please fill in the required fields."); return; }
     setErr(""); setSending(true);
-    const payload = {
-      email: ctx.user.email, name: ctx.user.name, company: ctx.user.company,
-      packageKey: ctx.pkg.key, suiteKey: module.suiteKey,
-      moduleKey: module.key, moduleName: module.name,
-      inputs: values, lang: ctx.lang, source: "platform",
-    };
-    let run = null;
-    try {
-      const res = await fetch("/api/module-run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await res.json().catch(() => ({}));
-      run = data.run;
-    } catch (e) { /* backend not configured — still show the run locally */ }
-    if (!run) run = { id: `local-${Date.now()}`, created_at: new Date().toISOString(), module_key: module.key, module_name: module.name, suite_key: module.suiteKey, status: "queued" };
+    await onRun(module, values);
     setSending(false);
-    onSubmitted(run);
   };
+  const Ico = SUITE_ICONS[module.suiteKey] || Sparkles;
   return (
-    <div className="plat-modal-overlay" onClick={onClose}>
-      <div className="plat-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="plat-modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
-        <span className="outline-pill">{module.suiteName}</span>
-        <h2>{module.name}</h2>
-        <p className="plat-modal-sub">{module.tagline}</p>
-        <form onSubmit={submit} className="plat-form">
-          {module.fields.map((f) => (
-            <label key={f.key} className={f.type === "textarea" ? "plat-full" : ""}>
-              {f.label}{f.required && <span className="plat-req"> *</span>}
-              {f.type === "textarea" ? (
-                <textarea rows="3" value={values[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder || ""} />
-              ) : f.type === "select" ? (
-                <select value={values[f.key] || ""} onChange={(e) => set(f.key, e.target.value)}>
-                  <option value="">—</option>
-                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : (
-                <input value={values[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder || ""} />
-              )}
-            </label>
-          ))}
-          {err && <p className="plat-err plat-full">{err}</p>}
-          <div className="plat-modal-actions plat-full">
-            <button type="button" className="plat-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="primary-button glow-button" disabled={sending}>{sending ? "Starting…" : "Start module"} <ArrowRight size={18} /></button>
+    <div className="plat-view">
+      <div className="plat-view-head">
+        <span className="outline-pill"><Ico size={14} /> {module.suiteName}</span>
+        <h1>{module.name}</h1>
+        <p>{module.tagline}</p>
+        <div className="plat-deliverables">{module.deliverables.map((d) => <span key={d}>{d}</span>)}</div>
+      </div>
+
+      {!unlocked ? (
+        <div className="plat-card plat-locked-card">
+          <div><Lock size={22} /><h3>This module is locked</h3><p>The {module.suiteName} isn't part of your current plan. Upgrade to unlock {module.name} and its deliverables.</p></div>
+          <button className="plat-start" onClick={gotoUpgrade}>See plans <ArrowRight size={15} /></button>
+        </div>
+      ) : (
+        <div className="plat-card">
+          <p className="plat-context-note">Your company profile is used as context — fields below are pre-filled where we already know the answer.</p>
+          <form onSubmit={submit} className="plat-form">
+            {module.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
+            {err && <p className="plat-err plat-full">{err}</p>}
+            <div className="plat-modal-actions plat-full">
+              <button type="submit" className="primary-button glow-button" disabled={sending}>{sending ? "Starting…" : "Run module"} <ArrowRight size={18} /></button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="plat-card">
+        <h3>Runs & deliverables</h3>
+        {moduleRuns.length === 0 ? (
+          <p className="plat-empty">No runs yet for this module.</p>
+        ) : (
+          <div className="plat-run-list">
+            {moduleRuns.map((r) => {
+              const st = RUN_STATUS[r.status] || RUN_STATUS.queued;
+              return (
+                <div className="plat-run" key={r.id}>
+                  <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span></div>
+                  <span className={`plat-status tone-${st.tone}`}>{st.label}</span>
+                </div>
+              );
+            })}
           </div>
-        </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DeliverablesView({ runs, goto }) {
+  const ready = runs.filter((r) => r.status === "done" || r.status === "completed");
+  const inProgress = runs.filter((r) => r.status === "queued" || r.status === "running");
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1>Deliverables</h1><p>Results your agents produced. Completed runs appear here as deliverables you can open.</p></div>
+      {ready.length === 0 && inProgress.length === 0 && (
+        <div className="plat-card"><p className="plat-empty">Nothing yet. Run a module and its deliverables will land here once the agent finishes.</p></div>
+      )}
+      {inProgress.length > 0 && (
+        <div className="plat-card">
+          <h3>In progress</h3>
+          <div className="plat-run-list">
+            {inProgress.map((r) => {
+              const st = RUN_STATUS[r.status] || RUN_STATUS.queued;
+              return (
+                <button className="plat-run plat-run-btn" key={r.id} onClick={() => goto(`module:${r.module_key}`)}>
+                  <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span></div>
+                  <span className={`plat-status tone-${st.tone}`}>{st.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {ready.length > 0 && (
+        <div className="plat-deliverable-grid">
+          {ready.map((r) => (
+            <button className="plat-deliverable" key={r.id} onClick={() => goto(`module:${r.module_key}`)}>
+              <span className="plat-status tone-green">Completed</span>
+              <h3>{r.module_name}</h3>
+              <span className="plat-deliverable-date">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ""}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityView({ runs }) {
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1>Activity</h1><p>Every module run and its current status.</p></div>
+      <div className="plat-card">
+        {runs.length === 0 ? <p className="plat-empty">No activity yet.</p> : (
+          <div className="plat-run-list">
+            {runs.map((r) => {
+              const st = RUN_STATUS[r.status] || RUN_STATUS.queued;
+              return (
+                <div className="plat-run" key={r.id}>
+                  <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span></div>
+                  <span className={`plat-status tone-${st.tone}`}>{st.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1977,137 +2169,128 @@ function PlatformPage() {
   const [pkgKey, setPkgKey] = useState(() => {
     try { return window.localStorage.getItem("nexum_pkg") || "venture-starter"; } catch { return "venture-starter"; }
   });
-  const [openModule, setOpenModule] = useState(null);
+  const [view, setView] = useState("overview");
   const [runs, setRuns] = useState([]);
+  const [company, setCompany] = useState({});
   const [toast, setToast] = useState("");
+  const [navOpen, setNavOpen] = useState(false);
 
   const pkg = packageByKey(pkgKey);
 
   useEffect(() => {
     if (!user) return;
     let ok = true;
+    try { const l = JSON.parse(window.localStorage.getItem(`nexum_company_${user.email}`) || "null"); if (l) setCompany(l); } catch (e) {}
     fetch(`/api/module-run?email=${encodeURIComponent(user.email)}`)
-      .then((r) => r.json())
-      .then((d) => { if (ok && Array.isArray(d.runs)) setRuns(d.runs); })
-      .catch(() => {});
+      .then((r) => r.json()).then((d) => { if (ok && Array.isArray(d.runs)) setRuns(d.runs); }).catch(() => {});
+    fetch(`/api/company?email=${encodeURIComponent(user.email)}`)
+      .then((r) => r.json()).then((d) => { if (ok && d && d.data && Object.keys(d.data).length) setCompany(d.data); }).catch(() => {});
     return () => { ok = false; };
   }, [user]);
 
   const setPackage = (k) => { setPkgKey(k); try { window.localStorage.setItem("nexum_pkg", k); } catch (e) {} };
-  const lastRunFor = (moduleKey) => runs.find((r) => r.module_key === moduleKey);
 
-  const onSubmitted = (run) => {
+  const saveCompanySection = (sectionKey, values) => {
+    const next = { ...company, [sectionKey]: values };
+    setCompany(next);
+    try { window.localStorage.setItem(`nexum_company_${user.email}`, JSON.stringify(next)); } catch (e) {}
+    fetch("/api/company", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: user.email, name: user.name, company: user.company, data: next }) }).catch(() => {});
+  };
+
+  const companyFlat = Object.assign({}, ...Object.values(company || {}));
+
+  const runModule = async (module, values) => {
+    const payload = {
+      email: user.email, name: user.name, company: user.company,
+      packageKey: pkg.key, suiteKey: module.suiteKey, moduleKey: module.key, moduleName: module.name,
+      inputs: { ...values, _company: companyFlat }, lang, source: "platform",
+    };
+    let run = null;
+    try {
+      const res = await fetch("/api/module-run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      run = data.run;
+    } catch (e) {}
+    if (!run) run = { id: `local-${Date.now()}`, created_at: new Date().toISOString(), module_key: module.key, module_name: module.name, suite_key: module.suiteKey, status: "queued" };
     setRuns((r) => [run, ...r.filter((x) => x.id !== run.id)]);
-    setOpenModule(null);
-    setToast(`“${run.module_name}” started — your agent is now working on it.`);
+    setToast(`“${module.name}” started — your agent is now working on it.`);
     window.setTimeout(() => setToast(""), 6000);
   };
 
+  const goto = (v) => { setView(v); setNavOpen(false); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
+
   if (!user) {
-    return (<Shell><main><section className="platform-page">
-      <PlatformSignIn onSignIn={setUser} />
-    </section></main></Shell>);
+    return (<Shell><main><section className="platform-page"><PlatformSignIn onSignIn={setUser} /></section></main></Shell>);
   }
 
   const firstName = (user.name || "").split(" ")[0] || user.name;
 
+  let content = null;
+  if (view === "overview") content = <OverviewView user={user} pkg={pkg} runs={runs} company={company} goto={goto} />;
+  else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} />;
+  else if (view === "activity") content = <ActivityView runs={runs} />;
+  else if (view.startsWith("company:")) {
+    const section = COMPANY_SECTIONS.find((s) => s.key === view.slice(8));
+    content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} /> : null;
+  } else if (view.startsWith("module:")) {
+    const mod = allModules().find((m) => m.key === view.slice(7));
+    if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} gotoUpgrade={() => goto("overview")} />;
+  }
+
+  const navItem = (key, label, icon, opts = {}) => {
+    const Ico = icon;
+    return (
+      <button key={key} className={`plat-nav-item ${view === key ? "is-active" : ""} ${opts.locked ? "is-locked" : ""}`} onClick={() => goto(key)}>
+        {Ico && <Ico size={16} />}<span>{label}</span>{opts.locked && <Lock size={12} />}
+      </button>
+    );
+  };
+
   return (
     <Shell>
       <main>
-        <section className="platform-page">
-          <header className="plat-head">
-            <div>
-              <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>
-              <h1>Welcome back, {firstName}</h1>
-              <p>Fill out a module and our agents produce your deliverables. Your plan defines which suites are unlocked.</p>
-            </div>
-            <div className="plat-head-side">
+        <div className="platform-shell">
+          <button className="plat-nav-toggle" onClick={() => setNavOpen((o) => !o)}><Menu size={18} /> Menu</button>
+          <aside className={`plat-sidebar ${navOpen ? "is-open" : ""}`}>
+            <div className="plat-brand"><LayoutDashboard size={18} /> NEXUM Platform</div>
+            <nav>
+              {navItem("overview", "Overview", LayoutDashboard)}
+
+              <div className="plat-nav-group">Company data</div>
+              {COMPANY_SECTIONS.map((s) => navItem(`company:${s.key}`, s.name, PLAT_ICONS[s.icon]))}
+
+              {SUITES.filter((s) => !s.base && s.modules.length).map((suite) => {
+                const unlocked = pkg.suites.includes(suite.key);
+                return (
+                  <div key={suite.key}>
+                    <div className="plat-nav-group">{suite.name}{!unlocked && <Lock size={11} />}</div>
+                    {suite.modules.map((m) => navItem(`module:${m.key}`, m.name, SUITE_ICONS[suite.key], { locked: !unlocked }))}
+                  </div>
+                );
+              })}
+
+              <div className="plat-nav-group">Results</div>
+              {navItem("deliverables", "Deliverables", Check)}
+              {navItem("activity", "Activity", Workflow)}
+            </nav>
+
+            <div className="plat-sidebar-foot">
               <label className="plat-plan">Your plan
                 <select value={pkgKey} onChange={(e) => setPackage(e.target.value)}>
                   {PACKAGES.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
                 </select>
               </label>
-              <button className="plat-ghost" onClick={() => setUser(null)}>Sign out</button>
+              <div className="plat-user"><span>{firstName}</span><button className="plat-ghost plat-signout" onClick={() => setUser(null)}>Sign out</button></div>
             </div>
-          </header>
+          </aside>
 
-          <div className="plat-plan-bar">
-            <span><b>{pkg.name}</b> · {pkg.priceOnce} once · {pkg.priceYear}</span>
-            <span className="plat-plan-target">{pkg.target}</span>
+          <div className="plat-main">
+            {toast && <div className="plat-toast"><Check size={16} /> {toast}</div>}
+            {content}
           </div>
-
-          {toast && <div className="plat-toast"><Check size={16} /> {toast}</div>}
-
-          {SUITES.map((suite) => {
-            const unlocked = pkg.suites.includes(suite.key);
-            const Ico = SUITE_ICONS[suite.key] || Sparkles;
-            if (suite.base) {
-              return (
-                <div className="plat-suite plat-base" key={suite.key}>
-                  <div className="plat-suite-head"><Ico size={18} /><h2>{suite.name}</h2><span className="plat-included">Included</span></div>
-                  <p className="plat-suite-role">{suite.role}</p>
-                </div>
-              );
-            }
-            return (
-              <div className={`plat-suite ${unlocked ? "" : "is-locked"}`} key={suite.key}>
-                <div className="plat-suite-head">
-                  <Ico size={18} /><h2>{suite.name}</h2>
-                  {unlocked ? <span className="plat-role-tag">{suite.role}</span> : <span className="plat-locked"><Lock size={13} /> Locked</span>}
-                </div>
-                <div className="plat-modules">
-                  {suite.modules.map((m) => {
-                    const last = lastRunFor(m.key);
-                    const st = last ? (RUN_STATUS[last.status] || RUN_STATUS.queued) : null;
-                    return (
-                      <div className="plat-module" key={m.key}>
-                        <h3>{m.name}</h3>
-                        <p>{m.tagline}</p>
-                        <div className="plat-deliverables">
-                          {m.deliverables.slice(0, 4).map((d) => <span key={d}>{d}</span>)}
-                        </div>
-                        <div className="plat-module-foot">
-                          {st && <span className={`plat-status tone-${st.tone}`}>{st.label}</span>}
-                          {unlocked ? (
-                            <button className="plat-start" onClick={() => setOpenModule({ ...m, suiteKey: suite.key, suiteName: suite.name })}>
-                              {last ? "Run again" : "Start module"} <ArrowRight size={15} />
-                            </button>
-                          ) : (
-                            <button className="plat-start is-locked" disabled><Lock size={13} /> Upgrade to unlock</button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {!unlocked && <p className="plat-upsell">Unlock the {suite.name} by upgrading your plan.</p>}
-              </div>
-            );
-          })}
-
-          <div className="plat-runs">
-            <h2>Your module runs</h2>
-            {runs.length === 0 ? (
-              <p className="plat-empty">No runs yet. Start a module above and it will appear here while your agent works on it.</p>
-            ) : (
-              <div className="plat-run-list">
-                {runs.map((r) => {
-                  const st = RUN_STATUS[r.status] || RUN_STATUS.queued;
-                  return (
-                    <div className="plat-run" key={r.id}>
-                      <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span></div>
-                      <span className={`plat-status tone-${st.tone}`}>{st.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </section>
+        </div>
       </main>
-      {openModule && (
-        <ModuleModal module={openModule} ctx={{ user, pkg, lang }} onClose={() => setOpenModule(null)} onSubmitted={onSubmitted} />
-      )}
     </Shell>
   );
 }
