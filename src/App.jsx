@@ -33,7 +33,7 @@ import previewModuleUrl from "./assets/preview-choose-module.html?url";
 import previewValidateUrl from "./assets/preview-validate.html?url";
 import previewContactUrl from "./assets/preview-contact.html?url";
 import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
-import { SUITES, PACKAGES, COMPANY_SECTIONS, packageByKey, allModules } from "./modules.js";
+import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, packageByKey, collectionByKey, allModules } from "./modules.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -1928,9 +1928,154 @@ function PlatField({ f, value, onChange }) {
           {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
-        <input value={value || ""} onChange={(e) => onChange(f.key, e.target.value)} placeholder={f.placeholder || ""} />
+        <input type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"} value={value || ""} onChange={(e) => onChange(f.key, e.target.value)} placeholder={f.placeholder || ""} />
       )}
     </label>
+  );
+}
+
+const EUR_COLS = new Set();
+function fmtCell(value, kind) {
+  if (kind === "eur") {
+    if (value === "" || value == null) return "—";
+    return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(value) || 0);
+  }
+  return value === "" || value == null ? "—" : String(value);
+}
+
+function CollectionView({ collection, user }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // "new" | id | null
+  const [values, setValues] = useState({});
+  const [err, setErr] = useState("");
+  const Ico = PLAT_ICONS[collection.icon] || Sparkles;
+
+  useEffect(() => {
+    let ok = true; setLoading(true); setEditing(null);
+    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=${collection.key}`)
+      .then((r) => r.json())
+      .then((d) => { if (ok) setRows(Array.isArray(d.records) ? d.records : []); })
+      .catch(() => {})
+      .finally(() => { if (ok) setLoading(false); });
+    return () => { ok = false; };
+  }, [collection.key]);
+
+  const startAdd = () => { setValues({}); setEditing("new"); setErr(""); };
+  const startEdit = (row) => { setValues(row.data || {}); setEditing(row.id); setErr(""); };
+  const set = (k, v) => setValues((s) => ({ ...s, [k]: v }));
+
+  const save = async (e) => {
+    e.preventDefault();
+    const missing = collection.fields.filter((f) => f.required && !values[f.key]);
+    if (missing.length) { setErr("Please fill in the required fields."); return; }
+    setErr("");
+    if (editing === "new") {
+      const optimistic = { id: `local-${Date.now()}`, created_at: new Date().toISOString(), kind: collection.key, data: values };
+      setRows((r) => [optimistic, ...r]); setEditing(null);
+      try {
+        const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: collection.key, data: values }) });
+        const d = await res.json().catch(() => ({}));
+        if (d.record) setRows((r) => [d.record, ...r.filter((x) => x.id !== optimistic.id)]);
+      } catch (e2) {}
+    } else {
+      const id = editing;
+      setRows((r) => r.map((x) => (x.id === id ? { ...x, data: values } : x))); setEditing(null);
+      try {
+        await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, email: user.email, data: values }) });
+      } catch (e2) {}
+    }
+  };
+
+  const remove = async (row) => {
+    setRows((r) => r.filter((x) => x.id !== row.id));
+    try { await fetch(`/api/records?id=${encodeURIComponent(row.id)}&email=${encodeURIComponent(user.email)}`, { method: "DELETE" }); } catch (e) {}
+  };
+
+  const summary = collection.summary(rows.map((r) => r.data || {}));
+
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head">
+        <h1><Ico size={22} /> {collection.name}</h1>
+        <p>{collection.intro}</p>
+      </div>
+
+      <div className="plat-kpis plat-kpis-3">
+        {summary.map((k) => (
+          <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span></div>
+        ))}
+      </div>
+
+      <div className="plat-card">
+        <div className="plat-table-top">
+          <h3>{collection.name}</h3>
+          {editing == null && <button className="plat-start" onClick={startAdd}>Add {collection.singular} <ArrowRight size={15} /></button>}
+        </div>
+
+        {editing != null && (
+          <form onSubmit={save} className="plat-form plat-record-form">
+            {collection.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
+            {err && <p className="plat-err plat-full">{err}</p>}
+            <div className="plat-modal-actions plat-full">
+              <button type="button" className="plat-ghost" onClick={() => setEditing(null)}>Cancel</button>
+              <button type="submit" className="primary-button glow-button">{editing === "new" ? "Add" : "Save"} <Check size={16} /></button>
+            </div>
+          </form>
+        )}
+
+        {loading ? (
+          <p className="plat-empty">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="plat-empty">No {collection.name.toLowerCase()} yet. Add your first {collection.singular}.</p>
+        ) : (
+          <div className="plat-table-wrap">
+            <table className="plat-table">
+              <thead>
+                <tr>{collection.columns.map((c) => <th key={c[0]}>{c[1]}</th>)}<th aria-label="actions" /></tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    {collection.columns.map((c) => <td key={c[0]}>{fmtCell((row.data || {})[c[0]], c[2])}</td>)}
+                    <td className="plat-row-actions">
+                      <button onClick={() => startEdit(row)} aria-label="Edit">Edit</button>
+                      <button onClick={() => remove(row)} aria-label="Delete" className="plat-del">Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResearchCard({ onResearch }) {
+  const [v, setV] = useState({ companyName: "", website: "", location: "" });
+  const [sent, setSent] = useState(false);
+  const go = async (e) => {
+    e.preventDefault();
+    if (!v.website && !v.companyName) return;
+    await onResearch(v);
+    setSent(true);
+    window.setTimeout(() => setSent(false), 6000);
+  };
+  return (
+    <div className="plat-card plat-research">
+      <div className="plat-research-head"><Sparkles size={18} /><div><h3>Auto-fill with the research agent</h3><p>Give us your website and location — the agent researches your company (products, name, shareholders, financials) and fills your profile.</p></div></div>
+      <form onSubmit={go} className="plat-form">
+        <label>Company name<input value={v.companyName} onChange={(e) => setV({ ...v, companyName: e.target.value })} /></label>
+        <label>Website<input value={v.website} onChange={(e) => setV({ ...v, website: e.target.value })} placeholder="https://" /></label>
+        <label>Location<input value={v.location} onChange={(e) => setV({ ...v, location: e.target.value })} placeholder="City, country" /></label>
+        <div className="plat-modal-actions plat-full">
+          {sent && <span className="plat-saved"><Check size={15} /> Research queued</span>}
+          <button type="submit" className="plat-start">Run research <ArrowRight size={15} /></button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -2007,7 +2152,7 @@ function OverviewView({ user, pkg, runs, company, goto }) {
   );
 }
 
-function CompanySectionView({ section, data, onSave }) {
+function CompanySectionView({ section, data, onSave, onResearch }) {
   const [values, setValues] = useState(data || {});
   const [saved, setSaved] = useState(false);
   useEffect(() => { setValues(data || {}); setSaved(false); }, [section.key]);
@@ -2016,6 +2161,7 @@ function CompanySectionView({ section, data, onSave }) {
   return (
     <div className="plat-view">
       <div className="plat-view-head"><h1><Ico size={22} /> {section.name}</h1><p>{section.intro}</p></div>
+      {section.key === "basics" && onResearch && <ResearchCard onResearch={onResearch} />}
       <div className="plat-card">
         <div className="plat-form">
           {section.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
@@ -2218,6 +2364,10 @@ function PlatformPage() {
     window.setTimeout(() => setToast(""), 6000);
   };
 
+  const runResearch = async (inputs) => {
+    await runModule({ key: "company-research", name: "Company Research", suiteKey: "strategy", deliverables: [], fields: [] }, inputs);
+  };
+
   const goto = (v) => { setView(v); setNavOpen(false); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
 
   if (!user) {
@@ -2230,9 +2380,12 @@ function PlatformPage() {
   if (view === "overview") content = <OverviewView user={user} pkg={pkg} runs={runs} company={company} goto={goto} />;
   else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} />;
   else if (view === "activity") content = <ActivityView runs={runs} />;
-  else if (view.startsWith("company:")) {
+  else if (view.startsWith("collection:")) {
+    const col = collectionByKey(view.slice(11));
+    content = col ? <CollectionView collection={col} user={user} /> : null;
+  } else if (view.startsWith("company:")) {
     const section = COMPANY_SECTIONS.find((s) => s.key === view.slice(8));
-    content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} /> : null;
+    content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} onResearch={runResearch} /> : null;
   } else if (view.startsWith("module:")) {
     const mod = allModules().find((m) => m.key === view.slice(7));
     if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} gotoUpgrade={() => goto("overview")} />;
@@ -2257,7 +2410,10 @@ function PlatformPage() {
             <nav>
               {navItem("overview", "Overview", LayoutDashboard)}
 
-              <div className="plat-nav-group">Company data</div>
+              <div className="plat-nav-group">Operations</div>
+              {COLLECTIONS.map((c) => navItem(`collection:${c.key}`, c.name, PLAT_ICONS[c.icon]))}
+
+              <div className="plat-nav-group">Company profile</div>
               {COMPANY_SECTIONS.map((s) => navItem(`company:${s.key}`, s.name, PLAT_ICONS[s.icon]))}
 
               {SUITES.filter((s) => !s.base && s.modules.length).map((suite) => {

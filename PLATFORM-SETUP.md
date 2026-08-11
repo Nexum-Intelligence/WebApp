@@ -70,6 +70,36 @@ create table if not exists public.company_profiles (
 `api/company.js` upserts on the `email` primary key
 (`Prefer: resolution=merge-duplicates`).
 
+### Operational records table (CRM / POS / Finance / Marketing)
+
+The **Operations** tabs — Customers (CRM), Products (POS), Income & Expenses,
+Marketing — are generic CRUD tables. Every collection lives in one table,
+keyed by `kind` (`customers` | `products` | `transactions` | `campaigns`):
+
+```sql
+create table if not exists public.company_records (
+  id          uuid primary key default gen_random_uuid(),
+  created_at  timestamptz not null default now(),
+  email       text not null,
+  kind        text not null,
+  data        jsonb not null default '{}'::jsonb
+);
+
+create index if not exists company_records_email_kind_idx
+  on public.company_records (email, kind, created_at desc);
+```
+
+Served by `api/records.js` (GET list, POST insert, PATCH update, DELETE).
+
+### Research auto-fill
+
+The **Company Basics** tab has a "research agent" card: the owner enters
+website + location, which POSTs a `module_runs` row with
+`module_key = 'company-research'`. Your n8n research agent picks that up,
+researches the company (products, name, shareholders, financials) and writes
+the findings back into `company_profiles.data` — which then pre-fills the
+profile and every module.
+
 ## 3. Environment variables (Vercel → Settings → Environment Variables)
 
 Reuses the same Supabase project as the readiness lead form:

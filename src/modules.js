@@ -358,6 +358,96 @@ export const COMPANY_SECTIONS = [
   },
 ];
 
+// ---- Operational admin collections (CRM / POS / Finance / Marketing) --------
+// Each is a CRUD table of records the business runs on. Stored per user in the
+// `company_records` table (kind = collection key, data jsonb).
+
+function fmtEur(n) {
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(n) || 0);
+}
+
+export const COLLECTIONS = [
+  {
+    key: "customers", name: "Customers (CRM)", icon: "compass", singular: "contact",
+    intro: "Your customer and lead pipeline.",
+    fields: [
+      { key: "name", label: "Name", type: "text", required: true },
+      { key: "company", label: "Company", type: "text" },
+      { key: "email", label: "Email", type: "text" },
+      { key: "phone", label: "Phone", type: "text" },
+      { key: "stage", label: "Stage", type: "select", options: ["Lead", "Qualified", "Customer", "Churned"] },
+      { key: "value", label: "Deal value (€)", type: "number" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+    columns: [["name", "Name"], ["company", "Company"], ["stage", "Stage"], ["value", "Value", "eur"]],
+    summary: (rows) => [
+      { label: "Contacts", value: rows.length },
+      { label: "Customers", value: rows.filter((r) => r.stage === "Customer").length },
+      { label: "Pipeline value", value: fmtEur(rows.reduce((s, r) => s + (Number(r.value) || 0), 0)) },
+    ],
+  },
+  {
+    key: "products", name: "Products (POS)", icon: "spark", singular: "product",
+    intro: "Your product & service catalog.",
+    fields: [
+      { key: "name", label: "Name", type: "text", required: true },
+      { key: "category", label: "Category", type: "text" },
+      { key: "sku", label: "SKU", type: "text" },
+      { key: "price", label: "Price (€)", type: "number" },
+      { key: "status", label: "Status", type: "select", options: ["Active", "Draft", "Archived"] },
+    ],
+    columns: [["name", "Name"], ["category", "Category"], ["price", "Price", "eur"], ["status", "Status"]],
+    summary: (rows) => [
+      { label: "Products", value: rows.length },
+      { label: "Active", value: rows.filter((r) => r.status === "Active").length },
+      { label: "Avg price", value: fmtEur(rows.length ? rows.reduce((s, r) => s + (Number(r.price) || 0), 0) / rows.length : 0) },
+    ],
+  },
+  {
+    key: "transactions", name: "Income & Expenses", icon: "rocket", singular: "entry",
+    intro: "Track revenue and costs.",
+    fields: [
+      { key: "date", label: "Date", type: "date" },
+      { key: "type", label: "Type", type: "select", options: ["Income", "Expense"], required: true },
+      { key: "category", label: "Category", type: "text" },
+      { key: "amount", label: "Amount (€)", type: "number", required: true },
+      { key: "description", label: "Description", type: "text" },
+    ],
+    columns: [["date", "Date"], ["type", "Type"], ["category", "Category"], ["amount", "Amount", "eur"]],
+    summary: (rows) => {
+      const income = rows.filter((r) => r.type === "Income").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const expense = rows.filter((r) => r.type === "Expense").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      return [
+        { label: "Income", value: fmtEur(income) },
+        { label: "Expenses", value: fmtEur(expense) },
+        { label: "Profit", value: fmtEur(income - expense) },
+      ];
+    },
+  },
+  {
+    key: "campaigns", name: "Marketing (CRM)", icon: "growth", singular: "campaign",
+    intro: "Campaigns, channels and leads.",
+    fields: [
+      { key: "name", label: "Campaign", type: "text", required: true },
+      { key: "channel", label: "Channel", type: "text" },
+      { key: "status", label: "Status", type: "select", options: ["Planned", "Active", "Done"] },
+      { key: "budget", label: "Budget (€)", type: "number" },
+      { key: "leads", label: "Leads", type: "number" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+    columns: [["name", "Campaign"], ["channel", "Channel"], ["status", "Status"], ["budget", "Budget", "eur"], ["leads", "Leads"]],
+    summary: (rows) => [
+      { label: "Campaigns", value: rows.length },
+      { label: "Active", value: rows.filter((r) => r.status === "Active").length },
+      { label: "Total leads", value: rows.reduce((s, r) => s + (Number(r.leads) || 0), 0) },
+    ],
+  },
+];
+
+export function collectionByKey(key) {
+  return COLLECTIONS.find((c) => c.key === key) || null;
+}
+
 export function packageByKey(key) {
   return PACKAGES.find((p) => p.key === key) || PACKAGES[0];
 }

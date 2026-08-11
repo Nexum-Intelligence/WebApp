@@ -4514,3 +4514,26 @@ html[data-lite="1"] .hero-logo-mark {
   .plat-kpis { grid-template-columns: 1fr 1fr; }
   .plat-deliverable-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Operational admin (CRM/POS/Finance/Marketing) ---------- */
+.plat-kpis-3 { grid-template-columns: repeat(3, 1fr); }
+.plat-table-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.plat-table-top h3 { margin: 0; }
+.plat-record-form { margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.plat-table-wrap { overflow-x: auto; }
+.plat-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.plat-table th { text-align: left; color: var(--soft); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 12px; border-bottom: 1px solid rgba(129, 140, 248, 0.2); }
+.plat-table td { color: #fff; padding: 11px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.plat-table tbody tr:hover { background: rgba(129, 140, 248, 0.05); }
+.plat-row-actions { text-align: right; white-space: nowrap; }
+.plat-row-actions button { background: none; border: 1px solid rgba(129, 140, 248, 0.3); color: var(--soft); border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer; margin-left: 6px; transition: border-color 0.12s, color 0.12s; }
+.plat-row-actions button:hover { border-color: rgba(129, 140, 248, 0.6); color: #fff; }
+.plat-row-actions .plat-del:hover { border-color: rgba(252, 165, 165, 0.6); color: #fca5a5; }
+.plat-research { border-color: rgba(129, 140, 248, 0.35); background: linear-gradient(180deg, rgba(129, 140, 248, 0.1), rgba(13, 14, 30, 0.7)); }
+.plat-research-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+.plat-research-head svg { color: var(--accent); flex: none; margin-top: 2px; }
+.plat-research-head h3 { margin: 0 0 4px; }
+.plat-research-head p { margin: 0; color: var(--soft); font-size: 13.5px; }
+@media (max-width: 720px) {
+  .plat-kpis-3 { grid-template-columns: 1fr; }
+}
