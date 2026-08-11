@@ -406,12 +406,10 @@ export const COMPANY_SECTIONS = [
     ],
   },
   {
-    key: "finance", name: "Finance", icon: "rocket",
-    intro: "Your financial picture and funding status.",
+    key: "finance", name: "Funding & Goals", icon: "rocket",
+    intro: "Funding status and financial goals. Actual revenue, costs and profit live in the Finance dashboard.",
     fields: [
-      { key: "revenue", label: "Current annual revenue", type: "text" },
       { key: "fundingStatus", label: "Funding status", type: "select", options: ["Bootstrapped", "Pre-seed", "Seed", "Series A+", "Profitable"] },
-      { key: "mainCosts", label: "Main cost drivers", type: "textarea" },
       { key: "financialGoals", label: "Financial goals", type: "textarea" },
     ],
   },

@@ -2677,7 +2677,85 @@ function OverviewView({ user, pkg, runs, company, goto }) {
   );
 }
 
-function CompanySectionView({ section, data, onSave, onResearch }) {
+function MiniBars({ items }) {
+  const max = Math.max(1, ...items.map((i) => Math.abs(i.value)));
+  return (
+    <div className="plat-bars">
+      {items.map((i) => (
+        <div className="plat-bar-row" key={i.label}>
+          <span className="plat-bar-label">{i.label}</span>
+          <div className="plat-bar-track"><span className="plat-bar-fill" style={{ width: `${Math.max(2, (Math.abs(i.value) / max) * 100)}%`, background: i.color }} /></div>
+          <span className="plat-bar-val">{money(i.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FinanceDashboardView({ user }) {
+  const [tx, setTx] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let ok = true;
+    Promise.all([
+      fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=transactions`).then((r) => r.json()),
+      fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=sales`).then((r) => r.json()),
+    ]).then(([t, s]) => { if (ok) { setTx(t.records || []); setSales(s.records || []); } }).catch(() => {}).finally(() => { if (ok) setLoading(false); });
+    return () => { ok = false; };
+  }, []);
+  const income = tx.filter((r) => (r.data || {}).type === "Income").reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
+  const expense = tx.filter((r) => (r.data || {}).type === "Expense").reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
+  const cogs = sales.reduce((a, r) => a + (Number((r.data || {}).cost) || 0), 0);
+  const profit = income - expense - cogs;
+  const kpis = [
+    { label: "Revenue", value: money(income) }, { label: "Expenses", value: money(expense) },
+    { label: "Cost of goods", value: money(cogs) }, { label: "Profit", value: money(profit) },
+  ];
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1><Cpu size={22} /> Finance</h1><p>Your live financial picture — calculated from Income &amp; Expenses and POS sales, not entered by hand.</p></div>
+      <div className="plat-kpis">{kpis.map((k) => <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span></div>)}</div>
+      <div className="plat-card">
+        <h3>Revenue · Expenses · Profit</h3>
+        <MiniBars items={[
+          { label: "Revenue", value: income, color: "#4ade80" },
+          { label: "Expenses", value: expense, color: "#f87171" },
+          { label: "Cost of goods", value: cogs, color: "#fbbf24" },
+          { label: "Profit", value: profit, color: "#818cf8" },
+        ]} />
+        {!loading && tx.length === 0 && sales.length === 0 && <p className="plat-empty">No financial data yet — add entries under Income &amp; Expenses or record sales in POS, and this fills automatically.</p>}
+      </div>
+    </div>
+  );
+}
+
+function ProfileView({ company, onSaveAll, onResearch }) {
+  const [values, setValues] = useState(company || {});
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setValues(company || {}); }, [company]);
+  const setF = (sk, k, v) => { setValues((s) => ({ ...s, [sk]: { ...(s[sk] || {}), [k]: v } })); setSaved(false); };
+  const save = () => { onSaveAll(values); setSaved(true); window.setTimeout(() => setSaved(false), 4000); };
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1><ShieldCheck size={22} /> Company Profile</h1><p>One questionnaire that feeds every agent. All optional — connect data sources for anything that can be measured.</p></div>
+      {onResearch && <ResearchCard onResearch={onResearch} />}
+      <div className="plat-profile-hint"><Sparkles size={14} /> All fields are optional. Connect a data source under <b>Connectors</b> and we'll use your live data where possible.</div>
+      {COMPANY_SECTIONS.map((sec) => {
+        const Ico = PLAT_ICONS[sec.icon] || ShieldCheck;
+        return (
+          <div className="plat-card" key={sec.key}>
+            <h3 className="plat-section-title"><Ico size={17} /> {sec.name}</h3>
+            <div className="plat-form">{sec.fields.map((f) => <PlatField key={f.key} f={f} value={(values[sec.key] || {})[f.key]} onChange={(k, v) => setF(sec.key, k, v)} />)}</div>
+          </div>
+        );
+      })}
+      <div className="plat-modal-actions">{saved && <span className="plat-saved"><Check size={15} /> Saved</span>}<button className="primary-button glow-button" onClick={save}>Save profile <Check size={16} /></button></div>
+    </div>
+  );
+}
+
+function CompanySectionView({ section, data, onSave, onResearch, user }) {
   const [values, setValues] = useState(data || {});
   const [saved, setSaved] = useState(false);
   useEffect(() => { setValues(data || {}); setSaved(false); }, [section.key]);
@@ -2687,7 +2765,7 @@ function CompanySectionView({ section, data, onSave, onResearch }) {
     <div className="plat-view">
       <div className="plat-view-head"><h1><Ico size={22} /> {section.name}</h1><p>{section.intro}</p></div>
       {section.key === "basics" && onResearch && <ResearchCard onResearch={onResearch} />}
-      <div className="plat-profile-hint"><Sparkles size={14} /> All fields are optional. Connect a data source under <b>Connectors</b> and we'll use your live data instead — which is more accurate than filling this in by hand.</div>
+      <div className="plat-profile-hint"><Sparkles size={14} /> {section.computed ? <>These are the only fields you set here — the numbers above come from your live data.</> : <>All fields are optional. Connect a data source under <b>Connectors</b> and we'll use your live data instead — which is more accurate than filling this in by hand.</>}</div>
       <div className="plat-card">
         <div className="plat-form">
           {section.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
@@ -2941,13 +3019,14 @@ function PlatformPage() {
 
   const setPackage = (k) => { setPkgKey(k); try { window.localStorage.setItem("nexum_pkg", k); } catch (e) {} };
 
-  const saveCompanySection = (sectionKey, values) => {
-    const next = { ...company, [sectionKey]: values };
+  const persistCompany = (next) => {
     setCompany(next);
     try { window.localStorage.setItem(`nexum_company_${user.email}`, JSON.stringify(next)); } catch (e) {}
     fetch("/api/company", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: user.email, name: user.name, company: user.company, data: next }) }).catch(() => {});
   };
+  const saveCompanySection = (sectionKey, values) => persistCompany({ ...company, [sectionKey]: values });
+  const saveCompanyAll = (next) => persistCompany(next);
 
   const companyFlat = Object.assign({}, ...Object.values(company || {}));
 
@@ -2993,6 +3072,8 @@ function PlatformPage() {
   else if (view === "subscription") content = <SubscriptionView pkg={pkg} setPackage={setPackage} />;
   else if (view === "products") content = <ProductsView user={user} />;
   else if (view === "pos") content = <PosView user={user} />;
+  else if (view === "finance") content = <FinanceDashboardView user={user} />;
+  else if (view === "profile") content = <ProfileView company={company} onSaveAll={saveCompanyAll} onResearch={runResearch} />;
   else if (view === "phases") content = <PhasesView pkg={pkg} goto={goto} />;
   else if (view === "tasks") content = <DailyTasksView user={user} onGenerate={runTasks} />;
   else if (view.startsWith("collection:")) {
@@ -3000,7 +3081,7 @@ function PlatformPage() {
     content = col ? <CollectionView collection={col} user={user} /> : null;
   } else if (view.startsWith("company:")) {
     const section = COMPANY_SECTIONS.find((s) => s.key === view.slice(8));
-    content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} onResearch={runResearch} /> : null;
+    content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} onResearch={runResearch} user={user} /> : null;
   } else if (view.startsWith("module:")) {
     const mod = allModules().find((m) => m.key === view.slice(7));
     if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} gotoUpgrade={() => goto("overview")} user={user} />;
@@ -3032,11 +3113,12 @@ function PlatformPage() {
               {navItem("products", "Products (POS)", Sparkles)}
               {navItem("collection:inventory", "Inventory", LayoutDashboard)}
               {navItem("pos", "Sales (POS)", ShieldCheck)}
+              {navItem("finance", "Finance", Cpu)}
               {navItem("collection:transactions", "Income & Expenses", Workflow)}
               {navItem("collection:campaigns", "Marketing (CRM)", Zap)}
 
-              <div className="plat-nav-group">Company profile</div>
-              {COMPANY_SECTIONS.map((s) => navItem(`company:${s.key}`, s.name, PLAT_ICONS[s.icon]))}
+              <div className="plat-nav-group">Company</div>
+              {navItem("profile", "Company Profile", ShieldCheck)}
 
               {SUITES.filter((s) => !s.base && s.modules.length).map((suite) => {
                 const unlocked = pkg.suites.includes(suite.key);
