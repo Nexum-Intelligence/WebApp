@@ -48,6 +48,39 @@ export const SUITES = [
           { key: "stage", label: "Current stage", type: "select", options: ["Idea", "MVP", "Early revenue", "Scaling"] },
         ],
       },
+      {
+        key: "competitor-analysis",
+        name: "Competitor Analysis",
+        tagline: "Map competitors, their positioning and where you can win.",
+        deliverables: ["Competitor matrix", "Positioning map", "Gap analysis"],
+        fields: [
+          { key: "competitors", label: "Competitors to analyse", type: "textarea", required: true },
+          { key: "market", label: "Market / category", type: "text" },
+          { key: "yourEdge", label: "Where you think you're stronger", type: "textarea" },
+        ],
+      },
+      {
+        key: "swot-analysis",
+        name: "SWOT Analysis",
+        tagline: "Strengths, weaknesses, opportunities and threats — structured.",
+        deliverables: ["SWOT canvas", "Strategic implications"],
+        fields: [
+          { key: "context", label: "What should the SWOT focus on?", type: "textarea", required: true },
+          { key: "knownStrengths", label: "Known strengths", type: "textarea" },
+          { key: "knownRisks", label: "Known weaknesses / threats", type: "textarea" },
+        ],
+      },
+      {
+        key: "customer-validation",
+        name: "Customer Validation",
+        tagline: "Test whether your idea solves a real, urgent problem.",
+        deliverables: ["Validation plan", "Interview guide", "Findings scorecard"],
+        fields: [
+          { key: "hypothesis", label: "Your core assumption to validate", type: "textarea", required: true },
+          { key: "targetCustomer", label: "Who are you validating with?", type: "text" },
+          { key: "channels", label: "How will you reach them?", type: "text" },
+        ],
+      },
     ],
   },
   {
@@ -80,6 +113,29 @@ export const SUITES = [
           { key: "fundingType", label: "Preferred funding type", type: "select", options: ["Grant / subsidy", "Equity / investors", "Loan", "Bootstrapped"] },
         ],
       },
+      {
+        key: "value-proposition",
+        name: "Value Proposition",
+        tagline: "Sharpen the promise that makes customers choose you.",
+        deliverables: ["Value proposition canvas", "Messaging pillars"],
+        fields: [
+          { key: "customer", label: "Who is it for?", type: "text", required: true },
+          { key: "problem", label: "What problem do you solve?", type: "textarea" },
+          { key: "benefit", label: "Main benefit / outcome", type: "textarea" },
+        ],
+      },
+      {
+        key: "go-to-market",
+        name: "Go-to-Market Plan",
+        tagline: "How you'll launch, reach customers and win the first sales.",
+        deliverables: ["GTM plan", "Channel strategy", "Launch timeline"],
+        fields: [
+          { key: "offer", label: "What are you taking to market?", type: "textarea", required: true },
+          { key: "targetSegment", label: "First target segment", type: "text" },
+          { key: "channels", label: "Channels to reach them", type: "text" },
+          { key: "timeline", label: "Target launch timeframe", type: "text" },
+        ],
+      },
     ],
   },
   {
@@ -110,6 +166,28 @@ export const SUITES = [
           { key: "channels", label: "Channels to focus on", type: "text", placeholder: "e.g. LinkedIn, Google, Email" },
           { key: "budget", label: "Monthly budget", type: "text", placeholder: "e.g. 2.000 €" },
           { key: "offer", label: "What are you promoting?", type: "textarea" },
+        ],
+      },
+      {
+        key: "marketing-strategy",
+        name: "Marketing Strategy",
+        tagline: "A full strategy: positioning, funnel, channels and content.",
+        deliverables: ["Marketing strategy deck", "Funnel design", "Content plan"],
+        fields: [
+          { key: "goal", label: "Main marketing goal", type: "select", options: ["Awareness", "Lead generation", "Sales", "Retention"], required: true },
+          { key: "audience", label: "Target audience", type: "text" },
+          { key: "budget", label: "Monthly budget", type: "text" },
+        ],
+      },
+      {
+        key: "growth-execution-plan",
+        name: "Growth Execution Plan",
+        tagline: "Turn strategy into a prioritised, week-by-week action plan.",
+        deliverables: ["Execution roadmap", "Weekly action plan", "KPI targets"],
+        fields: [
+          { key: "focus", label: "Main growth focus", type: "text", required: true },
+          { key: "horizon", label: "Planning horizon", type: "select", options: ["30 days", "90 days", "6 months"] },
+          { key: "constraints", label: "Constraints (budget, team, time)", type: "textarea" },
         ],
       },
     ],
@@ -387,20 +465,21 @@ export const COLLECTIONS = [
     ],
   },
   {
-    key: "products", name: "Products (POS)", icon: "spark", singular: "product",
-    intro: "Your product & service catalog.",
+    key: "inventory", name: "Inventory", icon: "dashboard", singular: "item",
+    intro: "Goods & ingredients you stock — the basis for product costs and profit.",
     fields: [
-      { key: "name", label: "Name", type: "text", required: true },
-      { key: "category", label: "Category", type: "text" },
-      { key: "sku", label: "SKU", type: "text" },
-      { key: "price", label: "Price (€)", type: "number" },
-      { key: "status", label: "Status", type: "select", options: ["Active", "Draft", "Archived"] },
+      { key: "name", label: "Item", type: "text", required: true },
+      { key: "unit", label: "Unit", type: "text", placeholder: "kg, l, pcs" },
+      { key: "unitCost", label: "Cost per unit (€)", type: "number" },
+      { key: "stock", label: "In stock", type: "number" },
+      { key: "reorder", label: "Reorder level", type: "number" },
+      { key: "supplier", label: "Supplier", type: "text" },
     ],
-    columns: [["name", "Name"], ["category", "Category"], ["price", "Price", "eur"], ["status", "Status"]],
+    columns: [["name", "Item"], ["unit", "Unit"], ["unitCost", "Unit cost", "eur"], ["stock", "Stock"]],
     summary: (rows) => [
-      { label: "Products", value: rows.length },
-      { label: "Active", value: rows.filter((r) => r.status === "Active").length },
-      { label: "Avg price", value: fmtEur(rows.length ? rows.reduce((s, r) => s + (Number(r.price) || 0), 0) / rows.length : 0) },
+      { label: "Items", value: rows.length },
+      { label: "Low stock", value: rows.filter((r) => r.reorder && Number(r.stock) <= Number(r.reorder)).length },
+      { label: "Stock value", value: fmtEur(rows.reduce((s, r) => s + (Number(r.unitCost) || 0) * (Number(r.stock) || 0), 0)) },
     ],
   },
   {
@@ -505,7 +584,7 @@ export const PHASES = [
 
 // Category of a module: "analysis" (research/report), "artifact" (plan/document),
 // or "live" (continuously updated from data — no manual run).
-const ANALYSIS_MODULES = new Set(["market-intelligence", "business-model"]);
+const ANALYSIS_MODULES = new Set(["market-intelligence", "business-model", "competitor-analysis", "swot-analysis", "customer-validation"]);
 export function moduleCategory(m) {
   if (m.type === "live") return "live";
   if (ANALYSIS_MODULES.has(m.key)) return "analysis";

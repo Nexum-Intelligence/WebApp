@@ -4617,3 +4617,46 @@ html[data-lite="1"] .hero-logo-mark {
 .plat-task-del { background: none; border: none; color: var(--soft); cursor: pointer; padding: 2px; }
 .plat-task-del:hover { color: #fca5a5; }
 .plat-task-done-head { color: var(--soft); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 2px; }
+
+/* ---------- Agent constellation ---------- */
+.plat-agents-card { background: radial-gradient(120% 90% at 50% 44%, rgba(22, 38, 74, 0.6) 0%, rgba(13, 14, 30, 0.7) 74%); }
+.plat-agents-title { display: flex; align-items: center; gap: 10px; color: var(--soft); font-size: 13px; margin-bottom: 4px; flex-wrap: wrap; }
+.plat-constellation { position: relative; width: 100%; height: 430px; }
+.plat-const-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.plat-const-lines line { stroke: rgba(129, 140, 248, 0.22); stroke-width: 1; }
+.plat-const-lines line.status-running, .plat-const-lines line.status-queued { stroke: rgba(129, 140, 248, 0.6); stroke-dasharray: 3 3; }
+.plat-agent { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; font: inherit; padding: 0; }
+.plat-agent-bot { position: relative; width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; color: #fff; background: color-mix(in srgb, var(--c) 22%, #0b1220); border: 1.5px solid var(--c); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); transition: transform 0.15s, box-shadow 0.15s; }
+.plat-agent:hover .plat-agent-bot { transform: translateY(-2px) scale(1.06); box-shadow: 0 10px 26px color-mix(in srgb, var(--c) 40%, transparent); }
+.plat-agent-orch .plat-agent-bot { width: 66px; height: 66px; border-radius: 20px; }
+.plat-agent-orch .plat-agent-name { color: #f59e0b; font-weight: 700; }
+.plat-agent-name { font-size: 12px; color: #cbd5e1; white-space: nowrap; }
+.plat-agent.is-active .plat-agent-bot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 45%, transparent); }
+.plat-agent.status-running .plat-agent-bot, .plat-agent.status-queued .plat-agent-bot { animation: agentPulse 1.6s infinite; }
+@keyframes agentPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent); } 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--c) 0%, transparent); } }
+.plat-agent-lock { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: #0b1220; border: 1px solid rgba(251, 191, 36, 0.5); color: #fbbf24; display: grid; place-items: center; }
+.plat-const-bubble { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); background: #fff; color: #0f172a; font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 640px) { .plat-constellation { height: 360px; } .plat-agent-name { font-size: 11px; } .plat-agent-bot { width: 46px; height: 46px; } }
+
+/* ---------- Profile hint, module result, recipe & POS ---------- */
+.plat-profile-hint { display: flex; align-items: flex-start; gap: 8px; color: var(--soft); font-size: 13px; line-height: 1.5; background: rgba(129, 140, 248, 0.08); border: 1px solid rgba(129, 140, 248, 0.2); border-radius: 12px; padding: 11px 14px; margin-bottom: 16px; }
+.plat-profile-hint svg { color: var(--accent); flex: none; margin-top: 2px; }
+.plat-result-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.plat-result-head h3 { margin: 0; }
+.plat-result-edit { width: 100%; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(129, 140, 248, 0.22); border-radius: 12px; color: #e2e2ee; font: inherit; font-size: 13.5px; line-height: 1.55; padding: 14px; resize: vertical; }
+.plat-result-edit:focus { outline: none; border-color: rgba(129, 140, 248, 0.6); }
+.plat-inputs summary { cursor: pointer; color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 10px; }
+.plat-recipe { border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 16px; padding-top: 14px; }
+.plat-recipe-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: #fff; }
+.plat-recipe-row { display: grid; grid-template-columns: 1fr 90px 80px 30px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.plat-recipe-row select, .plat-recipe-row input { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(129, 140, 248, 0.28); border-radius: 9px; color: #fff; padding: 8px 10px; font: inherit; }
+.plat-recipe-cost { color: var(--soft); font-size: 13px; text-align: right; }
+.plat-cost-summary { display: flex; gap: 18px; flex-wrap: wrap; margin: 14px 0; color: var(--soft); font-size: 14px; }
+.plat-cost-summary b { color: #fff; }
+.plat-pos { color: #86efac; }
+.plat-neg { color: #fca5a5; }
+.plat-table td.plat-pos, .plat-table td.plat-neg { font-weight: 600; }
+.plat-pos-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+.plat-pos-form select { flex: 1; min-width: 200px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(129, 140, 248, 0.28); border-radius: 10px; color: #fff; padding: 10px 12px; font: inherit; }
+.plat-pos-form input { width: 90px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(129, 140, 248, 0.28); border-radius: 10px; color: #fff; padding: 10px 12px; font: inherit; }
+@media (max-width: 560px) { .plat-recipe-row { grid-template-columns: 1fr 70px 70px 26px; } }

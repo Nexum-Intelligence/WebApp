@@ -2075,6 +2075,226 @@ function CollectionView({ collection, user }) {
   );
 }
 
+function money(n) { return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(Number(n) || 0); }
+function productCost(data, inventory) {
+  return ((data && data.recipe) || []).reduce((sum, r) => {
+    const it = inventory.find((i) => i.id === r.itemId);
+    const uc = it ? Number((it.data || {}).unitCost) || 0 : 0;
+    return sum + uc * (Number(r.qty) || 0);
+  }, 0);
+}
+
+function ProductsView({ user }) {
+  const [products, setProducts] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ name: "", category: "", price: "", status: "Active", recipe: [] });
+  const [err, setErr] = useState("");
+
+  const load = () => Promise.all([
+    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=products`).then((r) => r.json()),
+    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=inventory`).then((r) => r.json()),
+  ]).then(([p, i]) => { setProducts(p.records || []); setInventory(i.records || []); }).catch(() => {}).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
+
+  const startAdd = () => { setForm({ name: "", category: "", price: "", status: "Active", recipe: [] }); setEditing("new"); setErr(""); };
+  const startEdit = (p) => { setForm({ name: "", category: "", price: "", status: "Active", recipe: [], ...(p.data || {}) }); setEditing(p.id); setErr(""); };
+  const setF = (k, v) => setForm((s) => ({ ...s, [k]: v }));
+  const addLine = () => setForm((s) => ({ ...s, recipe: [...(s.recipe || []), { itemId: "", qty: "" }] }));
+  const setLine = (idx, k, v) => setForm((s) => ({ ...s, recipe: s.recipe.map((r, i) => (i === idx ? { ...r, [k]: v } : r)) }));
+  const delLine = (idx) => setForm((s) => ({ ...s, recipe: s.recipe.filter((_, i) => i !== idx) }));
+
+  const cost = productCost({ recipe: form.recipe }, inventory);
+  const price = Number(form.price) || 0;
+  const margin = price - cost;
+  const marginPct = price > 0 ? Math.round((margin / price) * 100) : 0;
+
+  const save = async (e) => {
+    e.preventDefault();
+    if (!form.name) { setErr("Name is required."); return; }
+    const data = { ...form, cost };
+    if (editing === "new") {
+      const opt = { id: `local-${Date.now()}`, kind: "products", data };
+      setProducts((p) => [opt, ...p]); setEditing(null);
+      try { const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: "products", data }) }); const d = await res.json().catch(() => ({})); if (d.record) setProducts((p) => [d.record, ...p.filter((x) => x.id !== opt.id)]); } catch (e2) {}
+    } else {
+      const id = editing; setProducts((p) => p.map((x) => (x.id === id ? { ...x, data } : x))); setEditing(null);
+      try { await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, email: user.email, data }) }); } catch (e2) {}
+    }
+  };
+  const remove = async (p) => { setProducts((x) => x.filter((y) => y.id !== p.id)); try { await fetch(`/api/records?id=${encodeURIComponent(p.id)}&email=${encodeURIComponent(user.email)}`, { method: "DELETE" }); } catch (e) {} };
+
+  const rows = products.map((p) => ({ id: p.id, ...(p.data || {}), _cost: productCost(p.data || {}, inventory) }));
+  const avgMargin = rows.length ? Math.round(rows.reduce((s, r) => { const pr = Number(r.price) || 0; return s + (pr > 0 ? ((pr - r._cost) / pr) * 100 : 0); }, 0) / rows.length) : 0;
+
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1><Sparkles size={22} /> Products (POS)</h1><p>Your products with their ingredients/goods, costs and margin. Costs come from Inventory.</p></div>
+
+      <div className="plat-kpis plat-kpis-3">
+        <div className="plat-kpi"><span className="plat-kpi-val">{rows.length}</span><span className="plat-kpi-label">Products</span></div>
+        <div className="plat-kpi"><span className="plat-kpi-val">{rows.filter((r) => r.status === "Active").length}</span><span className="plat-kpi-label">Active</span></div>
+        <div className="plat-kpi"><span className="plat-kpi-val">{avgMargin}%</span><span className="plat-kpi-label">Avg margin</span></div>
+      </div>
+
+      {inventory.length === 0 && <div className="plat-card"><p className="plat-empty">Tip: add your goods/ingredients under <b>Inventory</b> first, then attach them to a product to calculate cost &amp; profit.</p></div>}
+
+      <div className="plat-card">
+        <div className="plat-table-top"><h3>Products</h3>{editing == null && <button className="plat-start" onClick={startAdd}>Add product <ArrowRight size={15} /></button>}</div>
+
+        {editing != null && (
+          <form onSubmit={save} className="plat-record-form">
+            <div className="plat-form">
+              <label>Name<span className="plat-req"> *</span><input value={form.name} onChange={(e) => setF("name", e.target.value)} /></label>
+              <label>Category<input value={form.category} onChange={(e) => setF("category", e.target.value)} /></label>
+              <label>Selling price (€)<input type="number" value={form.price} onChange={(e) => setF("price", e.target.value)} /></label>
+              <label>Status<select value={form.status} onChange={(e) => setF("status", e.target.value)}><option>Active</option><option>Draft</option><option>Archived</option></select></label>
+            </div>
+
+            <div className="plat-recipe">
+              <div className="plat-recipe-head"><b>Ingredients / goods</b><button type="button" className="plat-ghost" onClick={addLine}>+ Add ingredient</button></div>
+              {(form.recipe || []).length === 0 ? <p className="plat-empty">No ingredients yet — add some to calculate cost.</p> : (form.recipe || []).map((line, idx) => {
+                const it = inventory.find((i) => i.id === line.itemId);
+                const uc = it ? Number((it.data || {}).unitCost) || 0 : 0;
+                const lineCost = uc * (Number(line.qty) || 0);
+                return (
+                  <div className="plat-recipe-row" key={idx}>
+                    <select value={line.itemId} onChange={(e) => setLine(idx, "itemId", e.target.value)}>
+                      <option value="">— select item —</option>
+                      {inventory.map((i) => <option key={i.id} value={i.id}>{(i.data || {}).name}{(i.data || {}).unit ? ` (${(i.data || {}).unit})` : ""}</option>)}
+                    </select>
+                    <input type="number" value={line.qty} onChange={(e) => setLine(idx, "qty", e.target.value)} placeholder="Qty" />
+                    <span className="plat-recipe-cost">{money(lineCost)}</span>
+                    <button type="button" className="plat-task-del" onClick={() => delLine(idx)} aria-label="Remove"><X size={14} /></button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="plat-cost-summary">
+              <span>Cost: <b>{money(cost)}</b></span><span>Price: <b>{money(price)}</b></span>
+              <span className={margin >= 0 ? "plat-pos" : "plat-neg"}>Margin: <b>{money(margin)} ({marginPct}%)</b></span>
+            </div>
+            {err && <p className="plat-err">{err}</p>}
+            <div className="plat-modal-actions"><button type="button" className="plat-ghost" onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="primary-button glow-button">{editing === "new" ? "Add" : "Save"} <Check size={16} /></button></div>
+          </form>
+        )}
+
+        {loading ? <p className="plat-empty">Loading…</p> : rows.length === 0 ? <p className="plat-empty">No products yet.</p> : (
+          <div className="plat-table-wrap">
+            <table className="plat-table">
+              <thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Cost</th><th>Margin</th><th /></tr></thead>
+              <tbody>
+                {rows.map((r) => { const pr = Number(r.price) || 0; const m = pr - r._cost; const mp = pr > 0 ? Math.round((m / pr) * 100) : 0; return (
+                  <tr key={r.id}>
+                    <td>{r.name}</td><td>{r.category || "—"}</td><td>{money(pr)}</td><td>{money(r._cost)}</td>
+                    <td className={m >= 0 ? "plat-pos" : "plat-neg"}>{money(m)} ({mp}%)</td>
+                    <td className="plat-row-actions"><button onClick={() => startEdit(products.find((p) => p.id === r.id))}>Edit</button><button className="plat-del" onClick={() => remove({ id: r.id })}>Delete</button></td>
+                  </tr>
+                ); })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PosView({ user }) {
+  const [products, setProducts] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [pid, setPid] = useState("");
+  const [qty, setQty] = useState("1");
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState("");
+
+  const load = () => Promise.all([
+    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=products`).then((r) => r.json()),
+    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=inventory`).then((r) => r.json()),
+    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=sales`).then((r) => r.json()),
+  ]).then(([p, i, s]) => { setProducts(p.records || []); setInventory(i.records || []); setSales(s.records || []); }).catch(() => {}).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
+
+  const product = products.find((p) => p.id === pid);
+  const unitPrice = product ? Number((product.data || {}).price) || 0 : 0;
+  const unitCost = product ? (Number((product.data || {}).cost) || productCost(product.data || {}, inventory)) : 0;
+  const q = Number(qty) || 0;
+  const revenue = unitPrice * q, lineCost = unitCost * q, profit = revenue - lineCost;
+
+  const record = async () => {
+    if (!product || q <= 0) return;
+    const data = { productId: pid, productName: (product.data || {}).name, qty: q, unitPrice, unitCost, revenue, cost: lineCost, profit, date: new Date().toISOString() };
+    const opt = { id: `local-${Date.now()}`, kind: "sales", data };
+    setSales((s) => [opt, ...s]); setMsg(`Sale recorded — profit ${money(profit)}.`); window.setTimeout(() => setMsg(""), 5000); setQty("1");
+    try {
+      const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: "sales", data }) });
+      const d = await res.json().catch(() => ({})); if (d.record) setSales((s) => [d.record, ...s.filter((x) => x.id !== opt.id)]);
+      // book income + decrement stock
+      await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: "transactions", data: { date: new Date().toISOString().slice(0, 10), type: "Income", category: "Sales", amount: revenue, description: `${q}× ${(product.data || {}).name}` } }) });
+      for (const line of ((product.data || {}).recipe || [])) {
+        const it = inventory.find((i) => i.id === line.itemId); if (!it) continue;
+        const newStock = (Number((it.data || {}).stock) || 0) - (Number(line.qty) || 0) * q;
+        await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id, email: user.email, data: { ...(it.data || {}), stock: newStock } }) });
+      }
+    } catch (e) {}
+  };
+
+  const sRows = sales.map((s) => s.data || {});
+  const totRev = sRows.reduce((a, r) => a + (Number(r.revenue) || 0), 0);
+  const totCogs = sRows.reduce((a, r) => a + (Number(r.cost) || 0), 0);
+  const totProfit = totRev - totCogs;
+
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1><Sparkles size={22} /> Sales (POS)</h1><p>Record a sale — revenue, cost of goods and profit are calculated, income is booked and stock is reduced.</p></div>
+
+      <div className="plat-kpis plat-kpis-3">
+        <div className="plat-kpi"><span className="plat-kpi-val">{money(totRev)}</span><span className="plat-kpi-label">Revenue</span></div>
+        <div className="plat-kpi"><span className="plat-kpi-val">{money(totCogs)}</span><span className="plat-kpi-label">Cost of goods</span></div>
+        <div className="plat-kpi"><span className="plat-kpi-val">{money(totProfit)}</span><span className="plat-kpi-label">Profit</span></div>
+      </div>
+
+      <div className="plat-card">
+        <h3>New sale</h3>
+        <div className="plat-pos-form">
+          <select value={pid} onChange={(e) => setPid(e.target.value)}>
+            <option value="">— select product —</option>
+            {products.map((p) => <option key={p.id} value={p.id}>{(p.data || {}).name} · {money(Number((p.data || {}).price) || 0)}</option>)}
+          </select>
+          <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} min="1" />
+          <button className="plat-start" onClick={record} disabled={!product || q <= 0}>Record sale <ArrowRight size={15} /></button>
+        </div>
+        {product && (
+          <div className="plat-cost-summary">
+            <span>Revenue: <b>{money(revenue)}</b></span><span>Cost: <b>{money(lineCost)}</b></span>
+            <span className={profit >= 0 ? "plat-pos" : "plat-neg"}>Profit: <b>{money(profit)}</b></span>
+          </div>
+        )}
+        {msg && <p className="plat-saved"><Check size={15} /> {msg}</p>}
+      </div>
+
+      <div className="plat-card">
+        <h3>Recent sales</h3>
+        {loading ? <p className="plat-empty">Loading…</p> : sales.length === 0 ? <p className="plat-empty">No sales yet.</p> : (
+          <div className="plat-table-wrap">
+            <table className="plat-table">
+              <thead><tr><th>Product</th><th>Qty</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>When</th></tr></thead>
+              <tbody>
+                {sales.map((s) => { const d = s.data || {}; return (
+                  <tr key={s.id}><td>{d.productName}</td><td>{d.qty}</td><td>{money(d.revenue)}</td><td>{money(d.cost)}</td><td className={(Number(d.profit) || 0) >= 0 ? "plat-pos" : "plat-neg"}>{money(d.profit)}</td><td>{d.date ? new Date(d.date).toLocaleString() : ""}</td></tr>
+                ); })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ConnectorsView({ user }) {
   const [saved, setSaved] = useState([]);
   const [openKey, setOpenKey] = useState(null);
@@ -2175,6 +2395,56 @@ function ResearchCard({ onResearch }) {
 }
 
 const CAT_LABEL = { analysis: "Analysis", artifact: "Artifact", live: "Live" };
+
+const SUITE_COLORS = { foundation: "#f59e0b", strategy: "#3b82f6", venture: "#a855f7", growth: "#ec4899", operations: "#14b8a6", intelligence: "#eab308", execution: "#06b6d4", specialist: "#22c55e" };
+const AGENT_STATUS_TEXT = { idle: "Idle — ready", queued: "Queued — waiting to start", running: "Working…", done: "Active — deliverables ready" };
+
+function suiteRunStatus(suite, runs) {
+  const keys = new Set((suite.modules || []).map((m) => m.key));
+  const rs = runs.filter((r) => keys.has(r.module_key));
+  if (rs.some((r) => r.status === "running")) return "running";
+  if (rs.some((r) => r.status === "queued")) return "queued";
+  if (rs.some((r) => r.status === "done" || r.status === "completed")) return "done";
+  return "idle";
+}
+
+function AgentConstellation({ runs, goto, pkg }) {
+  const sats = SUITES.filter((s) => !s.base);
+  const [active, setActive] = useState(null);
+  const n = sats.length;
+  const anyActive = sats.some((s) => ["running", "queued"].includes(suiteRunStatus(s, runs)));
+  const orchStatus = anyActive ? "running" : (runs.length ? "done" : "idle");
+  const activeSuite = sats.find((s) => s.key === active);
+  const bubble = activeSuite
+    ? `${activeSuite.name.replace(" Suite", "")} · ${AGENT_STATUS_TEXT[suiteRunStatus(activeSuite, runs)]}`
+    : `Orchestrator · ${orchStatus === "running" ? "Coordinating agents…" : "Self-managed · ready"}`;
+  const pos = (i) => { const a = (-90 + i * 360 / n) * Math.PI / 180; return { left: `${50 + 39 * Math.cos(a)}%`, top: `${50 + 39 * Math.sin(a)}%` }; };
+
+  return (
+    <div className="plat-constellation" onMouseLeave={() => setActive(null)}>
+      <svg className="plat-const-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+        {sats.map((s, i) => { const a = (-90 + i * 360 / n) * Math.PI / 180; return <line key={s.key} x1="50" y1="50" x2={50 + 39 * Math.cos(a)} y2={50 + 39 * Math.sin(a)} className={`status-${suiteRunStatus(s, runs)}`} />; })}
+      </svg>
+      <button className={`plat-agent plat-agent-orch status-${orchStatus}`} style={{ left: "50%", top: "50%" }} onMouseEnter={() => setActive(null)} onClick={() => goto("phases")}>
+        <span className="plat-agent-bot" style={{ "--c": SUITE_COLORS.foundation }}><Bot size={28} /></span>
+        <span className="plat-agent-name">Orchestrator</span>
+      </button>
+      {sats.map((s, i) => {
+        const st = suiteRunStatus(s, runs);
+        const unlocked = pkg.suites.includes(s.key);
+        return (
+          <button key={s.key} className={`plat-agent status-${st} ${active === s.key ? "is-active" : ""}`} style={pos(i)}
+            onMouseEnter={() => setActive(s.key)}
+            onClick={() => { const m = (s.modules || [])[0]; if (m) goto(`module:${m.key}`); }}>
+            <span className="plat-agent-bot" style={{ "--c": SUITE_COLORS[s.key] }}><Bot size={22} />{!unlocked && <span className="plat-agent-lock"><Lock size={10} /></span>}</span>
+            <span className="plat-agent-name">{s.name.replace(" Suite", "")}</span>
+          </button>
+        );
+      })}
+      <div className="plat-const-bubble">{bubble}</div>
+    </div>
+  );
+}
 
 function PhasesView({ pkg, goto }) {
   return (
@@ -2296,7 +2566,11 @@ function OverviewView({ user, pkg, runs, company, goto }) {
   ];
   return (
     <div className="plat-view">
-      <div className="plat-view-head"><h1>Overview</h1><p>Your business at a glance. Maintain your company data, run modules, collect deliverables.</p></div>
+      <div className="plat-view-head"><h1>Overview</h1><p>Your business at a glance. Your agent team, live status, company data and deliverables.</p></div>
+      <div className="plat-card plat-agents-card">
+        <div className="plat-agents-title"><span className="plat-live-badge"><span className="plat-live-dot" /> Agents</span><span>Live view of what your agent team is doing — click an agent to open it.</span></div>
+        <AgentConstellation runs={runs} goto={goto} pkg={pkg} />
+      </div>
       <div className="plat-kpis">
         {kpis.map((k) => (
           <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span><span className="plat-kpi-hint">{k.hint}</span></div>
@@ -2363,6 +2637,7 @@ function CompanySectionView({ section, data, onSave, onResearch }) {
     <div className="plat-view">
       <div className="plat-view-head"><h1><Ico size={22} /> {section.name}</h1><p>{section.intro}</p></div>
       {section.key === "basics" && onResearch && <ResearchCard onResearch={onResearch} />}
+      <div className="plat-profile-hint"><Sparkles size={14} /> All fields are optional. Connect a data source under <b>Connectors</b> and we'll use your live data instead — which is more accurate than filling this in by hand.</div>
       <div className="plat-card">
         <div className="plat-form">
           {section.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
@@ -2376,32 +2651,53 @@ function CompanySectionView({ section, data, onSave, onResearch }) {
   );
 }
 
-function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade }) {
+function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, user }) {
   const flatKey = JSON.stringify(companyFlat || {});
   const [values, setValues] = useState(() => prefillFromCompany(module.fields, companyFlat));
   const [err, setErr] = useState("");
   const [sending, setSending] = useState(false);
-  useEffect(() => {
-    setValues(prefillFromCompany(module.fields, companyFlat)); setErr("");
-  }, [module.key, flatKey]);
-  const set = (k, v) => setValues((s) => ({ ...s, [k]: v }));
+  const [resultText, setResultText] = useState("");
+  const [savingResult, setSavingResult] = useState(false);
+  const [savedResult, setSavedResult] = useState(false);
+
   const moduleRuns = runs.filter((r) => r.module_key === module.key);
-  const submit = async (e) => {
-    e.preventDefault();
-    const missing = module.fields.filter((f) => f.required && !values[f.key]);
-    if (missing.length) { setErr("Please fill in the required fields."); return; }
+  const isLive = module.type === "live";
+  const latest = moduleRuns[0];
+
+  useEffect(() => { setValues(prefillFromCompany(module.fields, companyFlat)); setErr(""); }, [module.key, flatKey]);
+  useEffect(() => {
+    const r = latest ? latest.result : null;
+    setResultText(r ? (typeof r === "string" ? r : JSON.stringify(r, null, 2)) : "");
+    setSavedResult(false);
+  }, [latest ? latest.id : "none"]);
+
+  const set = (k, v) => setValues((s) => ({ ...s, [k]: v }));
+
+  const generate = async (e) => {
+    if (e) e.preventDefault();
+    if (!isLive) {
+      const missing = module.fields.filter((f) => f.required && !values[f.key]);
+      if (missing.length) { setErr("Please fill in the required fields."); return; }
+    }
     setErr(""); setSending(true);
     await onRun(module, values);
     setSending(false);
   };
-  const isLive = module.type === "live";
-  const latest = moduleRuns[0];
-  const refresh = async () => { setSending(true); await onRun(module, values); setSending(false); };
+
+  const saveResult = async () => {
+    if (!latest || !user) return;
+    setSavingResult(true);
+    try { await fetch("/api/module-run", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: latest.id, email: user.email, result: resultText }) }); setSavedResult(true); } catch (e) {}
+    setSavingResult(false);
+  };
+
   const Ico = SUITE_ICONS[module.suiteKey] || Sparkles;
+  const st = latest ? (RUN_STATUS[latest.status] || RUN_STATUS.queued) : null;
+
   return (
     <div className="plat-view">
       <div className="plat-view-head">
-        <span className="plat-head-tags"><span className="outline-pill"><Ico size={14} /> {module.suiteName}</span><span className={`plat-cat plat-cat-${moduleCategory(module)}`}>{CAT_LABEL[moduleCategory(module)]}</span></span>
+        <span className="plat-head-tags"><span className="outline-pill"><Ico size={14} /> {module.suiteName}</span><span className={`plat-cat plat-cat-${moduleCategory(module)}`}>{CAT_LABEL[moduleCategory(module)]}</span>{isLive && <span className="plat-live-badge"><span className="plat-live-dot" /> Live</span>}</span>
         <h1>{module.name}</h1>
         <p>{module.tagline}</p>
         <div className="plat-deliverables">{module.deliverables.map((d) => <span key={d}>{d}</span>)}</div>
@@ -2412,59 +2708,39 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade })
           <div><Lock size={22} /><h3>This module is locked</h3><p>The {module.suiteName} isn't part of your current plan. Upgrade to unlock {module.name} and its deliverables.</p></div>
           <button className="plat-start" onClick={gotoUpgrade}>See plans <ArrowRight size={15} /></button>
         </div>
-      ) : isLive ? (
-        <div className="plat-card plat-live-card">
-          <div className="plat-live-head">
-            <span className="plat-live-badge"><span className="plat-live-dot" /> Live</span>
-            <p>This module updates continuously from your data and connected sources — no manual run needed. Steer it below or ask the agent (bottom-right).</p>
-          </div>
-          {latest && latest.result ? (
-            <pre className="plat-live-result">{typeof latest.result === "string" ? latest.result : JSON.stringify(latest.result, null, 2)}</pre>
-          ) : (
-            <p className="plat-empty">{latest ? "The agent is computing from your data — the latest result will appear here." : "No output yet. Connect your data under Connectors and the agent keeps this up to date."}</p>
-          )}
-          <details className="plat-live-settings">
-            <summary>Focus &amp; settings</summary>
-            <div className="plat-form">
-              {module.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
-            </div>
-          </details>
-          <div className="plat-modal-actions">
-            {latest && <span className="plat-live-updated">Updated {latest.created_at ? new Date(latest.created_at).toLocaleString() : ""}</span>}
-            <button className="plat-ghost" onClick={refresh} disabled={sending}>{sending ? "Updating…" : "Update now"}</button>
-          </div>
-        </div>
       ) : (
-        <div className="plat-card">
-          <p className="plat-context-note">Your company profile is used as context — fields below are pre-filled where we already know the answer.</p>
-          <form onSubmit={submit} className="plat-form">
-            {module.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
-            {err && <p className="plat-err plat-full">{err}</p>}
-            <div className="plat-modal-actions plat-full">
-              <button type="submit" className="primary-button glow-button" disabled={sending}>{sending ? "Starting…" : "Run module"} <ArrowRight size={18} /></button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div className="plat-card">
-        <h3>Runs & deliverables</h3>
-        {moduleRuns.length === 0 ? (
-          <p className="plat-empty">No runs yet for this module.</p>
-        ) : (
-          <div className="plat-run-list">
-            {moduleRuns.map((r) => {
-              const st = RUN_STATUS[r.status] || RUN_STATUS.queued;
-              return (
-                <div className="plat-run" key={r.id}>
-                  <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span></div>
-                  <span className={`plat-status tone-${st.tone}`}>{st.label}</span>
+        <>
+          <div className="plat-card">
+            <div className="plat-result-head"><h3>{isLive ? "Live result" : "Result"}</h3>{st && <span className={`plat-status tone-${st.tone}`}>{st.label}</span>}</div>
+            {latest ? (
+              <>
+                <textarea className="plat-result-edit" rows="9" value={resultText} onChange={(e) => { setResultText(e.target.value); setSavedResult(false); }} placeholder="The agent's result appears here — you can edit it and save." />
+                <div className="plat-modal-actions">
+                  {latest.created_at && <span className="plat-live-updated">Updated {new Date(latest.created_at).toLocaleString()}</span>}
+                  {savedResult && <span className="plat-saved"><Check size={14} /> Saved</span>}
+                  <button className="plat-ghost" onClick={saveResult} disabled={savingResult}>{savingResult ? "Saving…" : "Save changes"}</button>
                 </div>
-              );
-            })}
+              </>
+            ) : (
+              <p className="plat-empty">{isLive ? "No result yet. Connect your data (Connectors) and this updates automatically — or generate it now below." : "No result yet. Review the inputs below (already filled from your profile) and generate."}</p>
+            )}
           </div>
-        )}
-      </div>
+
+          <div className="plat-card">
+            <details className="plat-inputs" open={!latest}>
+              <summary>{isLive ? "Focus & settings (optional)" : "Inputs — from your company profile, adjust before generating"}</summary>
+              <p className="plat-context-note">These come from your company profile &amp; research. Edit anything, then {latest ? "regenerate" : "generate"}.</p>
+              <form onSubmit={generate} className="plat-form">
+                {module.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
+                {err && <p className="plat-err plat-full">{err}</p>}
+                <div className="plat-modal-actions plat-full">
+                  <button type="submit" className="primary-button glow-button" disabled={sending}>{sending ? "Working…" : (isLive ? "Update now" : (latest ? "Regenerate" : "Generate"))} <ArrowRight size={18} /></button>
+                </div>
+              </form>
+            </details>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -2664,6 +2940,8 @@ function PlatformPage() {
   else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} />;
   else if (view === "activity") content = <ActivityView runs={runs} />;
   else if (view === "connectors") content = <ConnectorsView user={user} />;
+  else if (view === "products") content = <ProductsView user={user} />;
+  else if (view === "pos") content = <PosView user={user} />;
   else if (view === "phases") content = <PhasesView pkg={pkg} goto={goto} />;
   else if (view === "tasks") content = <DailyTasksView user={user} onGenerate={runTasks} />;
   else if (view.startsWith("collection:")) {
@@ -2674,7 +2952,7 @@ function PlatformPage() {
     content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} onResearch={runResearch} /> : null;
   } else if (view.startsWith("module:")) {
     const mod = allModules().find((m) => m.key === view.slice(7));
-    if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} gotoUpgrade={() => goto("overview")} />;
+    if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} gotoUpgrade={() => goto("overview")} user={user} />;
   }
 
   const navItem = (key, label, icon, opts = {}) => {
@@ -2699,8 +2977,13 @@ function PlatformPage() {
               {navItem("tasks", "Daily Tasks", Check)}
 
               <div className="plat-nav-group">Operations</div>
-              {COLLECTIONS.map((c) => navItem(`collection:${c.key}`, c.name, PLAT_ICONS[c.icon]))}
-              {navItem("connectors", "Connectors", Workflow)}
+              {navItem("collection:customers", "Customers (CRM)", Globe)}
+              {navItem("products", "Products (POS)", Sparkles)}
+              {navItem("collection:inventory", "Inventory", LayoutDashboard)}
+              {navItem("pos", "Sales (POS)", ShieldCheck)}
+              {navItem("collection:transactions", "Income & Expenses", Workflow)}
+              {navItem("collection:campaigns", "Marketing (CRM)", Zap)}
+              {navItem("connectors", "Connectors", Cpu)}
 
               <div className="plat-nav-group">Company profile</div>
               {COMPANY_SECTIONS.map((s) => navItem(`company:${s.key}`, s.name, PLAT_ICONS[s.icon]))}

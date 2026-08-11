@@ -90,6 +90,17 @@ create index if not exists company_records_email_kind_idx
 ```
 
 Served by `api/records.js` (GET list, POST insert, PATCH update, DELETE).
+Kinds in use: `customers`, `inventory`, `products`, `sales`, `transactions`,
+`campaigns`, `tasks`, `connectors`.
+
+**POS / Warenwirtschaft:** `inventory` items carry `unitCost` + `stock`.
+`products` carry a `recipe` (`[{ itemId, qty }]`) referencing inventory ids, so
+product **cost** = Σ(qty × item unitCost) and **margin** = price − cost. Recording
+a sale (Sales POS) writes a `sales` row (revenue/cost/profit), books an income
+`transactions` row, and decrements the recipe's inventory `stock`.
+
+`api/module-run.js` also accepts `PATCH { id, email, result }` so a user can edit
+and save a module's result/artifact.
 
 ### Agent chat table
 

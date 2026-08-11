@@ -38,9 +38,26 @@ export default async function handler(req, res) {
     return;
   }
 
+  // ---- Edit a run's result (user adjusts the artifact) --------------------
+  if (req.method === "PATCH") {
+    try {
+      const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+      const { id, email, result } = body;
+      if (!id || !email) { res.status(400).json({ error: "Missing id or email" }); return; }
+      if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ ok: true, stored: false }); return; }
+      const r = await fetch(`${SUPA_URL}/rest/v1/module_runs?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Prefer: "return=minimal" },
+        body: JSON.stringify({ result }),
+      });
+      res.status(200).json({ ok: r.ok });
+    } catch (e) { res.status(500).json({ error: String(e) }); }
+    return;
+  }
+
   // ---- Start a module run (the n8n trigger line) --------------------------
   if (req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
+    res.setHeader("Allow", "GET, POST, PATCH");
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
