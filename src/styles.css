@@ -4537,3 +4537,19 @@ html[data-lite="1"] .hero-logo-mark {
 @media (max-width: 720px) {
   .plat-kpis-3 { grid-template-columns: 1fr; }
 }
+
+/* ---------- Connectors ---------- */
+.plat-connector-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.plat-connector { border: 1px solid rgba(129, 140, 248, 0.2); border-radius: 16px; background: rgba(255, 255, 255, 0.02); padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.plat-connector.is-connected { border-color: rgba(134, 239, 172, 0.35); }
+.plat-connector-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.plat-connector-head h3 { margin: 0; color: #fff; font-size: 16px; }
+.plat-connector-cat { font-size: 11.5px; color: var(--soft); border: 1px solid rgba(129, 140, 248, 0.22); border-radius: 999px; padding: 3px 9px; }
+.plat-connector > p { margin: 0; color: var(--soft); font-size: 13.5px; }
+.plat-connector-imports { color: var(--soft); font-size: 12px; opacity: 0.8; }
+.plat-connector-form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.plat-connector-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--soft); }
+.plat-connector-form input { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(129, 140, 248, 0.28); border-radius: 10px; color: #fff; padding: 10px 12px; font: inherit; }
+.plat-connector-form input:focus { outline: none; border-color: rgba(129, 140, 248, 0.7); }
+.plat-connector-actions { display: flex; gap: 8px; align-items: center; margin-top: auto; padding-top: 8px; }
+@media (max-width: 720px) { .plat-connector-grid { grid-template-columns: 1fr; } }

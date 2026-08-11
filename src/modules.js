@@ -448,6 +448,50 @@ export function collectionByKey(key) {
   return COLLECTIONS.find((c) => c.key === key) || null;
 }
 
+// ---- Connectors (data import for the agents) -------------------------------
+// The owner configures a source here; the actual polling/import runs in n8n,
+// which reads these connector configs and writes into company_records.
+
+export const CONNECTORS = [
+  {
+    key: "pos", name: "POS / Kasse", category: "Sales", imports: "products, income",
+    desc: "Read sales, products and revenue from your point-of-sale.",
+    fields: [
+      { key: "provider", label: "POS system", type: "text", placeholder: "e.g. orderbird, Square, Lightspeed" },
+      { key: "apiUrl", label: "API URL", type: "text" },
+      { key: "apiKey", label: "API key", type: "text" },
+    ],
+  },
+  {
+    key: "stripe", name: "Stripe", category: "Payments", imports: "income, customers",
+    desc: "Import payments and payouts as income.",
+    fields: [{ key: "apiKey", label: "Secret key (sk_…)", type: "text" }],
+  },
+  {
+    key: "hubspot", name: "HubSpot", category: "CRM", imports: "customers",
+    desc: "Import contacts and deals into your CRM.",
+    fields: [{ key: "apiKey", label: "Private app token", type: "text" }],
+  },
+  {
+    key: "gsheets", name: "Google Sheets", category: "Data", imports: "any table",
+    desc: "Pull rows from a shared spreadsheet.",
+    fields: [{ key: "sheetUrl", label: "Sheet URL", type: "text" }],
+  },
+  {
+    key: "datev", name: "DATEV", category: "Finance", imports: "income & expenses",
+    desc: "Sync bookings into finance.",
+    fields: [
+      { key: "client", label: "Client / Mandant", type: "text" },
+      { key: "apiKey", label: "API key", type: "text" },
+    ],
+  },
+  {
+    key: "csv", name: "CSV / Excel", category: "Data", imports: "any table",
+    desc: "Hand off a file URL for a one-off import.",
+    fields: [{ key: "fileUrl", label: "File URL", type: "text" }],
+  },
+];
+
 export function packageByKey(key) {
   return PACKAGES.find((p) => p.key === key) || PACKAGES[0];
 }

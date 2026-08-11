@@ -33,7 +33,7 @@ import previewModuleUrl from "./assets/preview-choose-module.html?url";
 import previewValidateUrl from "./assets/preview-validate.html?url";
 import previewContactUrl from "./assets/preview-contact.html?url";
 import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
-import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, packageByKey, collectionByKey, allModules } from "./modules.js";
+import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, packageByKey, collectionByKey, allModules } from "./modules.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -1916,6 +1916,28 @@ const PLAT_ICONS = {
   rocket: Workflow, dashboard: LayoutDashboard, brain: BrainCircuit, cpu: Cpu,
 };
 
+// Map a module input field to the company-profile field it can be pre-filled from
+// (the research agent writes into the company profile, which then feeds modules).
+const MODULE_ALIAS = {
+  idea: "description", oneLiner: "description", context: "description",
+  targetMarket: "marketRegion", region: "marketRegion",
+  customer: "targetCustomer", audience: "targetCustomer",
+  businessName: "companyName", goal12m: "goals12m",
+  currentRevenue: "revenue", offer: "mainOffer",
+  competitorsBrands: "competitors", resources: "keyRoles", useOfFunds: "financialGoals",
+};
+function prefillFromCompany(fields, companyFlat) {
+  const out = {};
+  fields.forEach((f) => {
+    let v = companyFlat[f.key];
+    if (v == null || v === "") v = companyFlat[MODULE_ALIAS[f.key]];
+    if (v == null || v === "") return;
+    if (f.type === "select" && !(f.options || []).includes(v)) return;
+    out[f.key] = v;
+  });
+  return out;
+}
+
 function PlatField({ f, value, onChange }) {
   return (
     <label className={f.type === "textarea" ? "plat-full" : ""}>
@@ -2053,6 +2075,79 @@ function CollectionView({ collection, user }) {
   );
 }
 
+function ConnectorsView({ user }) {
+  const [saved, setSaved] = useState([]);
+  const [openKey, setOpenKey] = useState(null);
+  const [cfg, setCfg] = useState({});
+
+  useEffect(() => {
+    let ok = true;
+    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=connectors`)
+      .then((r) => r.json()).then((d) => { if (ok) setSaved(Array.isArray(d.records) ? d.records : []); }).catch(() => {});
+    return () => { ok = false; };
+  }, []);
+
+  const recordFor = (key) => saved.find((s) => (s.data || {}).connectorKey === key);
+  const open = (c) => { const rec = recordFor(c.key); setCfg(rec ? (rec.data.config || {}) : {}); setOpenKey(c.key); };
+  const set = (k, v) => setCfg((s) => ({ ...s, [k]: v }));
+
+  const save = async (c) => {
+    const existing = recordFor(c.key);
+    const data = { connectorKey: c.key, name: c.name, config: cfg, connected: true };
+    setOpenKey(null);
+    if (existing) {
+      setSaved((s) => s.map((x) => (x.id === existing.id ? { ...x, data } : x)));
+      try { await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: existing.id, email: user.email, data }) }); } catch (e) {}
+    } else {
+      const optimistic = { id: `local-${Date.now()}`, kind: "connectors", data };
+      setSaved((s) => [optimistic, ...s]);
+      try {
+        const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: "connectors", data }) });
+        const d = await res.json().catch(() => ({}));
+        if (d.record) setSaved((s) => [d.record, ...s.filter((x) => x.id !== optimistic.id)]);
+      } catch (e) {}
+    }
+  };
+
+  const disconnect = async (c) => {
+    const existing = recordFor(c.key); if (!existing) return;
+    setSaved((s) => s.filter((x) => x.id !== existing.id));
+    try { await fetch(`/api/records?id=${encodeURIComponent(existing.id)}&email=${encodeURIComponent(user.email)}`, { method: "DELETE" }); } catch (e) {}
+  };
+
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1><Workflow size={22} /> Connectors</h1><p>Connect your tools so the agents import data automatically. You configure a source here; the sync runs on our side and fills your Operations tables.</p></div>
+      <div className="plat-connector-grid">
+        {CONNECTORS.map((c) => {
+          const rec = recordFor(c.key); const isOpen = openKey === c.key;
+          return (
+            <div className={`plat-connector ${rec ? "is-connected" : ""}`} key={c.key}>
+              <div className="plat-connector-head"><h3>{c.name}</h3>{rec ? <span className="plat-included">Connected</span> : <span className="plat-connector-cat">{c.category}</span>}</div>
+              <p>{c.desc}</p>
+              <span className="plat-connector-imports">Imports: {c.imports}</span>
+              {isOpen ? (
+                <div className="plat-connector-form">
+                  {c.fields.length === 0 && <p className="plat-empty">No configuration needed.</p>}
+                  {c.fields.map((f) => (
+                    <label key={f.key}>{f.label}<input value={cfg[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder || ""} /></label>
+                  ))}
+                  <div className="plat-connector-actions"><button className="plat-ghost" onClick={() => setOpenKey(null)}>Cancel</button><button className="plat-start" onClick={() => save(c)}>Save <Check size={15} /></button></div>
+                </div>
+              ) : (
+                <div className="plat-connector-actions">
+                  <button className="plat-start" onClick={() => open(c)}>{rec ? "Edit" : "Connect"} <ArrowRight size={15} /></button>
+                  {rec && <button className="plat-ghost" onClick={() => disconnect(c)}>Disconnect</button>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ResearchCard({ onResearch }) {
   const [v, setV] = useState({ companyName: "", website: "", location: "" });
   const [sent, setSent] = useState(false);
@@ -2176,16 +2271,13 @@ function CompanySectionView({ section, data, onSave, onResearch }) {
 }
 
 function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade }) {
-  const initial = {};
-  module.fields.forEach((f) => { if (companyFlat[f.key]) initial[f.key] = companyFlat[f.key]; });
-  const [values, setValues] = useState(initial);
+  const flatKey = JSON.stringify(companyFlat || {});
+  const [values, setValues] = useState(() => prefillFromCompany(module.fields, companyFlat));
   const [err, setErr] = useState("");
   const [sending, setSending] = useState(false);
   useEffect(() => {
-    const init = {};
-    module.fields.forEach((f) => { if (companyFlat[f.key]) init[f.key] = companyFlat[f.key]; });
-    setValues(init); setErr("");
-  }, [module.key]);
+    setValues(prefillFromCompany(module.fields, companyFlat)); setErr("");
+  }, [module.key, flatKey]);
   const set = (k, v) => setValues((s) => ({ ...s, [k]: v }));
   const moduleRuns = runs.filter((r) => r.module_key === module.key);
   const submit = async (e) => {
@@ -2313,7 +2405,7 @@ function PlatformPage() {
   const { lang } = useI18n();
   const [user, setUser] = usePlatformUser();
   const [pkgKey, setPkgKey] = useState(() => {
-    try { return window.localStorage.getItem("nexum_pkg") || "venture-starter"; } catch { return "venture-starter"; }
+    try { return window.localStorage.getItem("nexum_pkg") || "enterprise-plus"; } catch { return "enterprise-plus"; }
   });
   const [view, setView] = useState("overview");
   const [runs, setRuns] = useState([]);
@@ -2380,6 +2472,7 @@ function PlatformPage() {
   if (view === "overview") content = <OverviewView user={user} pkg={pkg} runs={runs} company={company} goto={goto} />;
   else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} />;
   else if (view === "activity") content = <ActivityView runs={runs} />;
+  else if (view === "connectors") content = <ConnectorsView user={user} />;
   else if (view.startsWith("collection:")) {
     const col = collectionByKey(view.slice(11));
     content = col ? <CollectionView collection={col} user={user} /> : null;
@@ -2412,6 +2505,7 @@ function PlatformPage() {
 
               <div className="plat-nav-group">Operations</div>
               {COLLECTIONS.map((c) => navItem(`collection:${c.key}`, c.name, PLAT_ICONS[c.icon]))}
+              {navItem("connectors", "Connectors", Workflow)}
 
               <div className="plat-nav-group">Company profile</div>
               {COMPANY_SECTIONS.map((s) => navItem(`company:${s.key}`, s.name, PLAT_ICONS[s.icon]))}
