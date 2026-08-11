@@ -519,6 +519,48 @@ export const COLLECTIONS = [
       { label: "Total leads", value: rows.reduce((s, r) => s + (Number(r.leads) || 0), 0) },
     ],
   },
+  {
+    key: "staff", name: "Staff", icon: "dashboard", singular: "team member",
+    intro: "Your team — roles, departments and monthly cost.",
+    fields: [
+      { key: "name", label: "Name", type: "text", required: true },
+      { key: "role", label: "Role", type: "text" },
+      { key: "department", label: "Department", type: "select", options: ["Management", "Sales", "Marketing", "Operations", "Finance", "HR", "Product", "Other"] },
+      { key: "employment", label: "Employment", type: "select", options: ["Full-time", "Part-time", "Contractor", "Intern"] },
+      { key: "salary", label: "Monthly cost (€)", type: "number" },
+      { key: "status", label: "Status", type: "select", options: ["Active", "On leave", "Left"] },
+      { key: "email", label: "Email", type: "text" },
+    ],
+    columns: [["name", "Name"], ["role", "Role"], ["department", "Dept"], ["employment", "Type"], ["salary", "Cost", "eur"]],
+    summary: (rows) => [
+      { label: "Team members", value: rows.filter((r) => r.status !== "Left").length },
+      { label: "Departments", value: new Set(rows.map((r) => r.department).filter(Boolean)).size },
+      { label: "Monthly staff cost", value: fmtEur(rows.filter((r) => r.status === "Active").reduce((s, r) => s + (Number(r.salary) || 0), 0)) },
+    ],
+  },
+  {
+    key: "suppliers", name: "Suppliers", icon: "rocket", singular: "supplier",
+    intro: "Your suppliers and vendors — the source side of your supply chain.",
+    fields: [
+      { key: "name", label: "Supplier", type: "text", required: true },
+      { key: "category", label: "Supplies", type: "text", placeholder: "e.g. produce, packaging" },
+      { key: "email", label: "Contact email", type: "text" },
+      { key: "phone", label: "Phone", type: "text" },
+      { key: "leadTime", label: "Lead time (days)", type: "number" },
+      { key: "reliability", label: "Reliability", type: "select", options: ["Excellent", "Good", "Average", "Poor"] },
+      { key: "status", label: "Status", type: "select", options: ["Preferred", "Active", "Inactive"] },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+    columns: [["name", "Supplier"], ["category", "Supplies"], ["leadTime", "Lead time"], ["status", "Status"]],
+    summary: (rows) => {
+      const lt = rows.map((r) => Number(r.leadTime)).filter((n) => n > 0);
+      return [
+        { label: "Suppliers", value: rows.filter((r) => r.status !== "Inactive").length },
+        { label: "Preferred", value: rows.filter((r) => r.status === "Preferred").length },
+        { label: "Avg lead time", value: lt.length ? `${Math.round(lt.reduce((a, b) => a + b, 0) / lt.length)} d` : "—" },
+      ];
+    },
+  },
 ];
 
 export function collectionByKey(key) {

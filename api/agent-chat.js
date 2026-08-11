@@ -9,6 +9,8 @@
 //   N8N_CHAT_URL   (optional) webhook that receives { email, message, context }
 //                  and returns { reply: "..." }. If unset, a graceful stub reply.
 
+import { buildContext } from "../lib/context.js";
+
 async function store(URL, KEY, row) {
   try {
     await fetch(`${URL}/rest/v1/agent_messages`, {
@@ -53,9 +55,11 @@ export default async function handler(req, res) {
     let reply = "";
     if (N8N) {
       try {
+        let business = "";
+        try { business = (await buildContext(email)).text; } catch (e) {}
         const r = await fetch(N8N, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, message, context }),
+          body: JSON.stringify({ email, message, context: { ...context, business } }),
         });
         if (r.ok) { const d = await r.json().catch(() => ({})); reply = d.reply || d.output || ""; }
       } catch (e) {}

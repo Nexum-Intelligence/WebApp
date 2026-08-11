@@ -11,6 +11,8 @@
 //
 // If env vars are missing the endpoint degrades gracefully so the UI still works.
 
+import { buildContext } from "../lib/context.js";
+
 function supa() {
   return { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY };
 }
@@ -87,6 +89,10 @@ export default async function handler(req, res) {
       lang,
       source,
     };
+
+    // Attach the tenant's live structured business context so the agent (n8n)
+    // reasons over real data (finance, sales, inventory, CRM, …), not just inputs.
+    try { const ctx = await buildContext(email); record.inputs = { ...(record.inputs || {}), _context: ctx.text }; } catch (e) {}
 
     if (!SUPA_URL || !SUPA_KEY) {
       // No backend configured yet — pretend-accept so the frontend flow works.

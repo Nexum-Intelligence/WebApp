@@ -2295,6 +2295,181 @@ function PosView({ user }) {
   );
 }
 
+function PurchasingView({ user }) {
+  const H = { "Content-Type": "application/json" };
+  const em = encodeURIComponent(user.email);
+  const [suppliers, setSuppliers] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [f, setF] = useState({ supplierId: "", itemId: "", qty: "1", unitCost: "", expected: "" });
+  const [msg, setMsg] = useState("");
+
+  const load = () => Promise.all([
+    fetch(`/api/records?email=${em}&kind=suppliers`).then((r) => r.json()),
+    fetch(`/api/records?email=${em}&kind=inventory`).then((r) => r.json()),
+    fetch(`/api/records?email=${em}&kind=purchases`).then((r) => r.json()),
+  ]).then(([s, i, o]) => { setSuppliers(s.records || []); setInventory(i.records || []); setOrders(o.records || []); }).catch(() => {}).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
+
+  const item = inventory.find((x) => x.id === f.itemId);
+  const setField = (k, v) => setF((s) => { const n = { ...s, [k]: v }; if (k === "itemId") { const it = inventory.find((x) => x.id === v); if (it && !n.unitCost) n.unitCost = String((it.data || {}).unitCost || ""); } return n; });
+
+  const addOrder = async () => {
+    if (!f.itemId && !f.supplierId) return;
+    const sup = suppliers.find((s) => s.id === f.supplierId);
+    const data = { supplier: (sup && sup.data && sup.data.name) || "", itemId: f.itemId, itemName: (item && item.data && item.data.name) || "", qty: Number(f.qty) || 0, unitCost: Number(f.unitCost) || 0, status: "Ordered", expected: f.expected };
+    const opt = { id: `local-${Date.now()}`, kind: "purchases", data };
+    setOrders((o) => [opt, ...o]); setMsg("Order created."); window.setTimeout(() => setMsg(""), 4000); setF({ supplierId: "", itemId: "", qty: "1", unitCost: "", expected: "" });
+    try { const res = await fetch("/api/records", { method: "POST", headers: H, body: JSON.stringify({ email: user.email, kind: "purchases", data }) }); const d = await res.json().catch(() => ({})); if (d.record) setOrders((o) => [d.record, ...o.filter((x) => x.id !== opt.id)]); } catch (e) {}
+  };
+
+  const receive = async (o) => {
+    const d = o.data || {}; if (d.status === "Received") return;
+    setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, data: { ...d, status: "Received" } } : x)));
+    try {
+      await fetch("/api/records", { method: "PATCH", headers: H, body: JSON.stringify({ id: o.id, email: user.email, data: { ...d, status: "Received" } }) });
+      if (d.itemId) { const it = inventory.find((x) => x.id === d.itemId); if (it) { const ns = (Number((it.data || {}).stock) || 0) + (Number(d.qty) || 0); await fetch("/api/records", { method: "PATCH", headers: H, body: JSON.stringify({ id: it.id, email: user.email, data: { ...(it.data || {}), stock: ns } }) }); setInventory((inv) => inv.map((x) => (x.id === it.id ? { ...x, data: { ...(x.data || {}), stock: ns } } : x))); } }
+      await fetch("/api/records", { method: "POST", headers: H, body: JSON.stringify({ email: user.email, kind: "transactions", data: { date: new Date().toISOString().slice(0, 10), type: "Expense", category: "Purchasing", amount: (Number(d.qty) || 0) * (Number(d.unitCost) || 0), description: `${d.qty}× ${d.itemName || d.supplier}` } }) });
+    } catch (e) {}
+    setMsg("Received — stock increased and expense booked."); window.setTimeout(() => setMsg(""), 5000);
+  };
+  const remove = async (o) => { setOrders((os) => os.filter((x) => x.id !== o.id)); try { await fetch(`/api/records?id=${encodeURIComponent(o.id)}&email=${em}`, { method: "DELETE" }); } catch (e) {} };
+
+  const rows = orders.map((o) => o.data || {});
+  const kpis = [
+    { label: "Open orders", value: rows.filter((r) => r.status === "Ordered" || r.status === "Draft").length },
+    { label: "Received", value: rows.filter((r) => r.status === "Received").length },
+    { label: "Total spend", value: money(rows.reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.unitCost) || 0), 0)) },
+  ];
+
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1><Workflow size={22} /> Purchasing</h1><p>Order goods from suppliers. Receiving an order increases stock and books the expense.</p></div>
+      <div className="plat-kpis plat-kpis-3">{kpis.map((k) => <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span></div>)}</div>
+      <div className="plat-card">
+        <h3>New purchase order</h3>
+        <div className="plat-pos-form">
+          <select value={f.supplierId} onChange={(e) => setField("supplierId", e.target.value)}><option value="">— supplier —</option>{suppliers.map((s) => <option key={s.id} value={s.id}>{(s.data || {}).name}</option>)}</select>
+          <select value={f.itemId} onChange={(e) => setField("itemId", e.target.value)}><option value="">— item —</option>{inventory.map((i) => <option key={i.id} value={i.id}>{(i.data || {}).name}</option>)}</select>
+          <input type="number" value={f.qty} onChange={(e) => setField("qty", e.target.value)} placeholder="Qty" />
+          <input type="number" value={f.unitCost} onChange={(e) => setField("unitCost", e.target.value)} placeholder="Unit cost" />
+          <button className="plat-start" onClick={addOrder}>Create order <ArrowRight size={15} /></button>
+        </div>
+        {msg && <p className="plat-saved"><Check size={15} /> {msg}</p>}
+      </div>
+      <div className="plat-card">
+        <h3>Orders</h3>
+        {loading ? <p className="plat-empty">Loading…</p> : orders.length === 0 ? <p className="plat-empty">No purchase orders yet.</p> : (
+          <div className="plat-table-wrap"><table className="plat-table">
+            <thead><tr><th>Item</th><th>Supplier</th><th>Qty</th><th>Unit cost</th><th>Status</th><th /></tr></thead>
+            <tbody>{orders.map((o) => { const d = o.data || {}; return (
+              <tr key={o.id}><td>{d.itemName || "—"}</td><td>{d.supplier || "—"}</td><td>{d.qty}</td><td>{money(d.unitCost)}</td>
+                <td><span className={`plat-status tone-${d.status === "Received" ? "green" : d.status === "Cancelled" ? "red" : "amber"}`}>{d.status}</span></td>
+                <td className="plat-row-actions">{d.status !== "Received" && <button onClick={() => receive(o)}>Receive</button>}<button className="plat-del" onClick={() => remove(o)}>Delete</button></td>
+              </tr>
+            ); })}</tbody>
+          </table></div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InvoicesView({ user }) {
+  const H = { "Content-Type": "application/json" };
+  const em = encodeURIComponent(user.email);
+  const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cust, setCust] = useState("");
+  const [lines, setLines] = useState([]);
+  const [due, setDue] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = () => Promise.all([
+    fetch(`/api/records?email=${em}&kind=customers`).then((r) => r.json()),
+    fetch(`/api/records?email=${em}&kind=products`).then((r) => r.json()),
+    fetch(`/api/records?email=${em}&kind=invoices`).then((r) => r.json()),
+  ]).then(([c, p, i]) => { setCustomers(c.records || []); setProducts(p.records || []); setInvoices(i.records || []); }).catch(() => {}).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
+
+  const addLine = () => setLines((l) => [...l, { productId: "", qty: "1" }]);
+  const setLine = (idx, k, v) => setLines((l) => l.map((x, i) => (i === idx ? { ...x, [k]: v } : x)));
+  const delLine = (idx) => setLines((l) => l.filter((_, i) => i !== idx));
+  const lineTotal = (ln) => { const p = products.find((x) => x.id === ln.productId); return (p ? Number((p.data || {}).price) || 0 : 0) * (Number(ln.qty) || 0); };
+  const total = lines.reduce((s, ln) => s + lineTotal(ln), 0);
+
+  const create = async () => {
+    if (!cust || lines.length === 0) return;
+    const c = customers.find((x) => x.id === cust);
+    const data = { customerId: cust, customerName: (c && c.data && c.data.name) || "", lines: lines.map((ln) => { const p = products.find((x) => x.id === ln.productId); return { productId: ln.productId, name: p ? (p.data || {}).name : "", qty: Number(ln.qty) || 0, price: p ? Number((p.data || {}).price) || 0 : 0 }; }), total, status: "Draft", date: new Date().toISOString(), due };
+    const opt = { id: `local-${Date.now()}`, kind: "invoices", data };
+    setInvoices((iv) => [opt, ...iv]); setLines([]); setCust(""); setDue(""); setMsg("Invoice created (Draft)."); window.setTimeout(() => setMsg(""), 4000);
+    try { const res = await fetch("/api/records", { method: "POST", headers: H, body: JSON.stringify({ email: user.email, kind: "invoices", data }) }); const d = await res.json().catch(() => ({})); if (d.record) setInvoices((iv) => [d.record, ...iv.filter((x) => x.id !== opt.id)]); } catch (e) {}
+  };
+
+  const markPaid = async (inv) => {
+    const d = inv.data || {}; if (d.status === "Paid") return;
+    setInvoices((iv) => iv.map((x) => (x.id === inv.id ? { ...x, data: { ...d, status: "Paid" } } : x)));
+    try {
+      await fetch("/api/records", { method: "PATCH", headers: H, body: JSON.stringify({ id: inv.id, email: user.email, data: { ...d, status: "Paid" } }) });
+      await fetch("/api/records", { method: "POST", headers: H, body: JSON.stringify({ email: user.email, kind: "transactions", data: { date: new Date().toISOString().slice(0, 10), type: "Income", category: "Invoice", amount: Number(d.total) || 0, description: `Invoice · ${d.customerName}` } }) });
+    } catch (e) {}
+    setMsg("Marked paid — income booked."); window.setTimeout(() => setMsg(""), 5000);
+  };
+  const remove = async (inv) => { setInvoices((iv) => iv.filter((x) => x.id !== inv.id)); try { await fetch(`/api/records?id=${encodeURIComponent(inv.id)}&email=${em}`, { method: "DELETE" }); } catch (e) {} };
+
+  const rows = invoices.map((i) => i.data || {});
+  const invoiced = rows.reduce((s, r) => s + (Number(r.total) || 0), 0);
+  const paid = rows.filter((r) => r.status === "Paid").reduce((s, r) => s + (Number(r.total) || 0), 0);
+  const kpis = [{ label: "Invoiced", value: money(invoiced) }, { label: "Outstanding", value: money(invoiced - paid) }, { label: "Paid", value: money(paid) }];
+
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1><ShieldCheck size={22} /> Invoices</h1><p>Bill customers for products. Marking an invoice paid books the income automatically.</p></div>
+      <div className="plat-kpis plat-kpis-3">{kpis.map((k) => <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span></div>)}</div>
+      <div className="plat-card">
+        <h3>New invoice</h3>
+        <div className="plat-pos-form">
+          <select value={cust} onChange={(e) => setCust(e.target.value)}><option value="">— customer —</option>{customers.map((c) => <option key={c.id} value={c.id}>{(c.data || {}).name}</option>)}</select>
+          <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+        </div>
+        <div className="plat-recipe">
+          <div className="plat-recipe-head"><b>Line items</b><button type="button" className="plat-ghost" onClick={addLine}>+ Add line</button></div>
+          {lines.length === 0 ? <p className="plat-empty">Add products to bill.</p> : lines.map((ln, idx) => (
+            <div className="plat-recipe-row" key={idx}>
+              <select value={ln.productId} onChange={(e) => setLine(idx, "productId", e.target.value)}><option value="">— product —</option>{products.map((p) => <option key={p.id} value={p.id}>{(p.data || {}).name} · {money(Number((p.data || {}).price) || 0)}</option>)}</select>
+              <input type="number" value={ln.qty} onChange={(e) => setLine(idx, "qty", e.target.value)} placeholder="Qty" />
+              <span className="plat-recipe-cost">{money(lineTotal(ln))}</span>
+              <button type="button" className="plat-task-del" onClick={() => delLine(idx)} aria-label="Remove"><X size={14} /></button>
+            </div>
+          ))}
+        </div>
+        <div className="plat-cost-summary"><span>Total: <b>{money(total)}</b></span></div>
+        <div className="plat-modal-actions"><button className="plat-start" onClick={create} disabled={!cust || lines.length === 0}>Create invoice <ArrowRight size={15} /></button></div>
+        {msg && <p className="plat-saved"><Check size={15} /> {msg}</p>}
+      </div>
+      <div className="plat-card">
+        <h3>Invoices</h3>
+        {loading ? <p className="plat-empty">Loading…</p> : invoices.length === 0 ? <p className="plat-empty">No invoices yet.</p> : (
+          <div className="plat-table-wrap"><table className="plat-table">
+            <thead><tr><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th /></tr></thead>
+            <tbody>{invoices.map((inv) => { const d = inv.data || {}; return (
+              <tr key={inv.id}><td>{d.customerName || "—"}</td><td>{money(d.total)}</td>
+                <td><span className={`plat-status tone-${d.status === "Paid" ? "green" : "amber"}`}>{d.status}</span></td>
+                <td>{d.date ? new Date(d.date).toLocaleDateString() : ""}</td>
+                <td className="plat-row-actions">{d.status !== "Paid" && <button onClick={() => markPaid(inv)}>Mark paid</button>}<button className="plat-del" onClick={() => remove(inv)}>Delete</button></td>
+              </tr>
+            ); })}</tbody>
+          </table></div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SubscriptionView({ pkg, setPackage }) {
   const currentIdx = PACKAGES.findIndex((p) => p.key === pkg.key);
   return (
@@ -2695,17 +2870,21 @@ function MiniBars({ items }) {
 function FinanceDashboardView({ user }) {
   const [tx, setTx] = useState([]);
   const [sales, setSales] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let ok = true;
     Promise.all([
       fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=transactions`).then((r) => r.json()),
       fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=sales`).then((r) => r.json()),
-    ]).then(([t, s]) => { if (ok) { setTx(t.records || []); setSales(s.records || []); } }).catch(() => {}).finally(() => { if (ok) setLoading(false); });
+      fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=staff`).then((r) => r.json()),
+    ]).then(([t, s, st]) => { if (ok) { setTx(t.records || []); setSales(s.records || []); setStaff(st.records || []); } }).catch(() => {}).finally(() => { if (ok) setLoading(false); });
     return () => { ok = false; };
   }, []);
   const income = tx.filter((r) => (r.data || {}).type === "Income").reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
-  const expense = tx.filter((r) => (r.data || {}).type === "Expense").reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
+  const txExpense = tx.filter((r) => (r.data || {}).type === "Expense").reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
+  const staffCost = staff.filter((r) => (r.data || {}).status === "Active").reduce((a, r) => a + (Number((r.data || {}).salary) || 0), 0);
+  const expense = txExpense + staffCost;
   const cogs = sales.reduce((a, r) => a + (Number((r.data || {}).cost) || 0), 0);
   const profit = income - expense - cogs;
   const kpis = [
@@ -3073,6 +3252,8 @@ function PlatformPage() {
   else if (view === "products") content = <ProductsView user={user} />;
   else if (view === "pos") content = <PosView user={user} />;
   else if (view === "finance") content = <FinanceDashboardView user={user} />;
+  else if (view === "purchasing") content = <PurchasingView user={user} />;
+  else if (view === "invoices") content = <InvoicesView user={user} />;
   else if (view === "profile") content = <ProfileView company={company} onSaveAll={saveCompanyAll} onResearch={runResearch} />;
   else if (view === "phases") content = <PhasesView pkg={pkg} goto={goto} />;
   else if (view === "tasks") content = <DailyTasksView user={user} onGenerate={runTasks} />;
@@ -3112,10 +3293,14 @@ function PlatformPage() {
               {navItem("collection:customers", "Customers (CRM)", Globe)}
               {navItem("products", "Products (POS)", Sparkles)}
               {navItem("collection:inventory", "Inventory", LayoutDashboard)}
+              {navItem("collection:suppliers", "Suppliers", Globe)}
+              {navItem("purchasing", "Purchasing", Workflow)}
               {navItem("pos", "Sales (POS)", ShieldCheck)}
+              {navItem("invoices", "Invoices", ShieldCheck)}
               {navItem("finance", "Finance", Cpu)}
               {navItem("collection:transactions", "Income & Expenses", Workflow)}
               {navItem("collection:campaigns", "Marketing (CRM)", Zap)}
+              {navItem("collection:staff", "Staff", Bot)}
 
               <div className="plat-nav-group">Company</div>
               {navItem("profile", "Company Profile", ShieldCheck)}
