@@ -2295,6 +2295,38 @@ function PosView({ user }) {
   );
 }
 
+function SubscriptionView({ pkg, setPackage }) {
+  const currentIdx = PACKAGES.findIndex((p) => p.key === pkg.key);
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1>Subscription</h1><p>Your current plan and upgrades. A higher plan unlocks more agent suites.</p></div>
+      <div className="plat-card plat-plan-current">
+        <div><span className="outline-pill"><ShieldCheck size={14} /> Current plan</span><h2>{pkg.name}</h2><p className="plat-plan-target">{pkg.target}</p></div>
+        <div className="plat-plan-current-price"><b>{pkg.priceOnce}</b><span>once</span><b>{pkg.priceYear}</b></div>
+      </div>
+      <div className="plat-plan-grid">
+        {PACKAGES.map((p, i) => {
+          const isCurrent = p.key === pkg.key;
+          const label = isCurrent ? "Current plan" : i > currentIdx ? "Upgrade" : "Switch";
+          return (
+            <div className={`plat-plan-card ${isCurrent ? "is-current" : ""}`} key={p.key}>
+              <h3>{p.name}</h3>
+              <div className="plat-plan-price">{p.priceOnce}<span> once</span></div>
+              <div className="plat-plan-year">{p.priceYear}</div>
+              <p className="plat-plan-target">{p.target}</p>
+              <ul className="plat-plan-suites">
+                {p.suites.filter((s) => s !== "foundation").map((sk) => { const s = SUITES.find((x) => x.key === sk); return <li key={sk}><Check size={13} /> {s ? s.name : sk}</li>; })}
+              </ul>
+              <button className={`plat-start ${isCurrent ? "is-locked" : ""}`} disabled={isCurrent} onClick={() => setPackage(p.key)}>{label}{!isCurrent && <ArrowRight size={15} />}</button>
+            </div>
+          );
+        })}
+      </div>
+      <p className="plat-empty">Selecting a plan unlocks its suites immediately. Secure checkout &amp; billing would run here.</p>
+    </div>
+  );
+}
+
 function ConnectorsView({ user }) {
   const [saved, setSaved] = useState([]);
   const [openKey, setOpenKey] = useState(null);
@@ -2408,6 +2440,24 @@ function suiteRunStatus(suite, runs) {
   return "idle";
 }
 
+function Robot({ color, size = 60, hub }) {
+  return (
+    <svg className="plat-robot-svg" width={size} height={size * 74 / 64} viewBox="0 0 64 74" fill="none" aria-hidden="true">
+      <ellipse className="plat-robot-base" cx="32" cy="70" rx={hub ? 22 : 18} ry="5" fill="none" stroke={color} strokeWidth="2" opacity="0.45" />
+      <line x1="32" y1="6" x2="32" y2="2" stroke={color} strokeWidth="2" />
+      <circle cx="32" cy="2" r="2" fill={color} />
+      <rect x="24" y="60" width="6" height="9" rx="3" fill="#26426e" />
+      <rect x="34" y="60" width="6" height="9" rx="3" fill="#26426e" />
+      <rect x="8" y="34" width="6" height="16" rx="3" fill={color} />
+      <rect x="50" y="34" width="6" height="16" rx="3" fill={color} />
+      <rect x="16" y="32" width="32" height="28" rx="9" fill={color} />
+      <text x="32" y="50" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="9" fontWeight="700" fill="rgba(255,255,255,0.6)">{">-"}</text>
+      <rect x="14" y="6" width="36" height="26" rx="8" fill="#12203c" stroke="#3f6aa8" strokeWidth="2" />
+      <text x="32" y="24" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="15" fontWeight="700" fill="#7de3ff">{">_"}</text>
+    </svg>
+  );
+}
+
 function AgentConstellation({ runs, goto, pkg }) {
   const sats = SUITES.filter((s) => !s.base);
   const [active, setActive] = useState(null);
@@ -2426,7 +2476,7 @@ function AgentConstellation({ runs, goto, pkg }) {
         {sats.map((s, i) => { const a = (-90 + i * 360 / n) * Math.PI / 180; return <line key={s.key} x1="50" y1="50" x2={50 + 39 * Math.cos(a)} y2={50 + 39 * Math.sin(a)} className={`status-${suiteRunStatus(s, runs)}`} />; })}
       </svg>
       <button className={`plat-agent plat-agent-orch status-${orchStatus}`} style={{ left: "50%", top: "50%" }} onMouseEnter={() => setActive(null)} onClick={() => goto("phases")}>
-        <span className="plat-agent-bot" style={{ "--c": SUITE_COLORS.foundation }}><Bot size={28} /></span>
+        <span className="plat-robot"><Robot color={SUITE_COLORS.foundation} size={82} hub /></span>
         <span className="plat-agent-name">Orchestrator</span>
       </button>
       {sats.map((s, i) => {
@@ -2436,7 +2486,7 @@ function AgentConstellation({ runs, goto, pkg }) {
           <button key={s.key} className={`plat-agent status-${st} ${active === s.key ? "is-active" : ""}`} style={pos(i)}
             onMouseEnter={() => setActive(s.key)}
             onClick={() => { const m = (s.modules || [])[0]; if (m) goto(`module:${m.key}`); }}>
-            <span className="plat-agent-bot" style={{ "--c": SUITE_COLORS[s.key] }}><Bot size={22} />{!unlocked && <span className="plat-agent-lock"><Lock size={10} /></span>}</span>
+            <span className="plat-robot"><Robot color={SUITE_COLORS[s.key]} size={60} />{!unlocked && <span className="plat-agent-lock"><Lock size={10} /></span>}</span>
             <span className="plat-agent-name">{s.name.replace(" Suite", "")}</span>
           </button>
         );
@@ -2940,6 +2990,7 @@ function PlatformPage() {
   else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} />;
   else if (view === "activity") content = <ActivityView runs={runs} />;
   else if (view === "connectors") content = <ConnectorsView user={user} />;
+  else if (view === "subscription") content = <SubscriptionView pkg={pkg} setPackage={setPackage} />;
   else if (view === "products") content = <ProductsView user={user} />;
   else if (view === "pos") content = <PosView user={user} />;
   else if (view === "phases") content = <PhasesView pkg={pkg} goto={goto} />;
@@ -2983,7 +3034,6 @@ function PlatformPage() {
               {navItem("pos", "Sales (POS)", ShieldCheck)}
               {navItem("collection:transactions", "Income & Expenses", Workflow)}
               {navItem("collection:campaigns", "Marketing (CRM)", Zap)}
-              {navItem("connectors", "Connectors", Cpu)}
 
               <div className="plat-nav-group">Company profile</div>
               {COMPANY_SECTIONS.map((s) => navItem(`company:${s.key}`, s.name, PLAT_ICONS[s.icon]))}
@@ -3001,14 +3051,14 @@ function PlatformPage() {
               <div className="plat-nav-group">Results</div>
               {navItem("deliverables", "Deliverables", Check)}
               {navItem("activity", "Activity", Workflow)}
+
+              <div className="plat-nav-group">Settings</div>
+              {navItem("subscription", "Subscription", ShieldCheck)}
+              {navItem("connectors", "Connectors", Cpu)}
             </nav>
 
             <div className="plat-sidebar-foot">
-              <label className="plat-plan">Your plan
-                <select value={pkgKey} onChange={(e) => setPackage(e.target.value)}>
-                  {PACKAGES.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
-                </select>
-              </label>
+              <div className="plat-plan-mini" onClick={() => goto("subscription")}><span>Plan</span><b>{pkg.name}</b></div>
               <div className="plat-user"><span>{firstName}</span><button className="plat-ghost plat-signout" onClick={() => setUser(null)}>Sign out</button></div>
             </div>
           </aside>
