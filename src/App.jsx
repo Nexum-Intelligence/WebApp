@@ -33,7 +33,7 @@ import previewModuleUrl from "./assets/preview-choose-module.html?url";
 import previewValidateUrl from "./assets/preview-validate.html?url";
 import previewContactUrl from "./assets/preview-contact.html?url";
 import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
-import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, packageByKey, collectionByKey, allModules } from "./modules.js";
+import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, PHASES, packageByKey, collectionByKey, allModules, moduleCategory } from "./modules.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -2174,6 +2174,112 @@ function ResearchCard({ onResearch }) {
   );
 }
 
+const CAT_LABEL = { analysis: "Analysis", artifact: "Artifact", live: "Live" };
+
+function PhasesView({ pkg, goto }) {
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1>Phases</h1><p>Your journey from analysis to execution. Each phase generates its artifacts — open a card to fill the form and generate.</p></div>
+      {PHASES.map((phase) => {
+        const mods = allModules().filter((m) => phase.suites.includes(m.suiteKey));
+        return (
+          <div className="plat-card plat-phase" key={phase.key}>
+            <div className="plat-phase-head"><span className="plat-phase-num">{phase.num}</span><div><h3>{phase.name}</h3><p>{phase.blurb}</p></div></div>
+            <div className="plat-phase-mods">
+              {mods.map((m) => {
+                const cat = moduleCategory(m);
+                const unlocked = pkg.suites.includes(m.suiteKey);
+                return (
+                  <button className="plat-phase-mod" key={m.key} onClick={() => goto(`module:${m.key}`)}>
+                    <span className={`plat-cat plat-cat-${cat}`}>{CAT_LABEL[cat]}</span>
+                    <b>{m.name}</b>
+                    <span className="plat-phase-mod-tag">{unlocked ? (cat === "live" ? "Live" : "Generate") : "Locked"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DailyTasksView({ user, onGenerate }) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState("");
+  const [gen, setGen] = useState(false);
+
+  const load = () => fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=tasks`)
+    .then((r) => r.json()).then((d) => setTasks(Array.isArray(d.records) ? d.records : [])).catch(() => {}).finally(() => setLoading(false));
+  useEffect(() => { load(); }, []);
+
+  const toggle = async (t) => {
+    const data = { ...(t.data || {}), done: !(t.data || {}).done };
+    setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, data } : x)));
+    try { await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id, email: user.email, data }) }); } catch (e) {}
+  };
+  const remove = async (t) => {
+    setTasks((ts) => ts.filter((x) => x.id !== t.id));
+    try { await fetch(`/api/records?id=${encodeURIComponent(t.id)}&email=${encodeURIComponent(user.email)}`, { method: "DELETE" }); } catch (e) {}
+  };
+  const add = async (e) => {
+    e.preventDefault();
+    const title = adding.trim(); if (!title) return;
+    const data = { title, priority: "Normal", done: false, source: "manual" };
+    const optimistic = { id: `local-${Date.now()}`, kind: "tasks", data };
+    setTasks((ts) => [optimistic, ...ts]); setAdding("");
+    try {
+      const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: "tasks", data }) });
+      const d = await res.json().catch(() => ({}));
+      if (d.record) setTasks((ts) => [d.record, ...ts.filter((x) => x.id !== optimistic.id)]);
+    } catch (e2) {}
+  };
+  const generate = async () => { setGen(true); await onGenerate(); setGen(false); window.setTimeout(load, 1500); };
+
+  const open = tasks.filter((t) => !(t.data || {}).done);
+  const done = tasks.filter((t) => (t.data || {}).done);
+
+  return (
+    <div className="plat-view">
+      <div className="plat-view-head"><h1>Daily Tasks</h1><p>Your Decision agent generates a focused set of tasks each day to grow and scale — from your live data. Check them off as you go.</p></div>
+
+      <div className="plat-card plat-cta-card">
+        <div><h3>Today's plan</h3><p>Let the agent read your data and generate today's highest-impact actions.</p></div>
+        <button className="plat-start" onClick={generate} disabled={gen}>{gen ? "Generating…" : "Generate today's tasks"} <ArrowRight size={15} /></button>
+      </div>
+
+      <div className="plat-card">
+        <form className="plat-task-add" onSubmit={add}>
+          <input value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="Add a task…" />
+          <button className="plat-start" type="submit">Add</button>
+        </form>
+        {loading ? <p className="plat-empty">Loading…</p> : tasks.length === 0 ? (
+          <p className="plat-empty">No tasks yet. Generate today's plan or add one above.</p>
+        ) : (
+          <div className="plat-task-list">
+            {open.map((t) => (
+              <div className="plat-task" key={t.id}>
+                <label><input type="checkbox" checked={false} onChange={() => toggle(t)} /><span>{(t.data || {}).title}</span></label>
+                {(t.data || {}).priority && <span className="plat-task-pri">{(t.data || {}).priority}</span>}
+                <button className="plat-task-del" onClick={() => remove(t)} aria-label="Delete"><X size={14} /></button>
+              </div>
+            ))}
+            {done.length > 0 && <div className="plat-task-done-head">Done ({done.length})</div>}
+            {done.map((t) => (
+              <div className="plat-task is-done" key={t.id}>
+                <label><input type="checkbox" checked readOnly onChange={() => toggle(t)} /><span>{(t.data || {}).title}</span></label>
+                <button className="plat-task-del" onClick={() => remove(t)} aria-label="Delete"><X size={14} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OverviewView({ user, pkg, runs, company, goto }) {
   const modulesAvailable = allModules().filter((m) => pkg.suites.includes(m.suiteKey)).length;
   const totalCompanyFields = COMPANY_SECTIONS.reduce((n, s) => n + s.fields.length, 0);
@@ -2288,11 +2394,14 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade })
     await onRun(module, values);
     setSending(false);
   };
+  const isLive = module.type === "live";
+  const latest = moduleRuns[0];
+  const refresh = async () => { setSending(true); await onRun(module, values); setSending(false); };
   const Ico = SUITE_ICONS[module.suiteKey] || Sparkles;
   return (
     <div className="plat-view">
       <div className="plat-view-head">
-        <span className="outline-pill"><Ico size={14} /> {module.suiteName}</span>
+        <span className="plat-head-tags"><span className="outline-pill"><Ico size={14} /> {module.suiteName}</span><span className={`plat-cat plat-cat-${moduleCategory(module)}`}>{CAT_LABEL[moduleCategory(module)]}</span></span>
         <h1>{module.name}</h1>
         <p>{module.tagline}</p>
         <div className="plat-deliverables">{module.deliverables.map((d) => <span key={d}>{d}</span>)}</div>
@@ -2302,6 +2411,28 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade })
         <div className="plat-card plat-locked-card">
           <div><Lock size={22} /><h3>This module is locked</h3><p>The {module.suiteName} isn't part of your current plan. Upgrade to unlock {module.name} and its deliverables.</p></div>
           <button className="plat-start" onClick={gotoUpgrade}>See plans <ArrowRight size={15} /></button>
+        </div>
+      ) : isLive ? (
+        <div className="plat-card plat-live-card">
+          <div className="plat-live-head">
+            <span className="plat-live-badge"><span className="plat-live-dot" /> Live</span>
+            <p>This module updates continuously from your data and connected sources — no manual run needed. Steer it below or ask the agent (bottom-right).</p>
+          </div>
+          {latest && latest.result ? (
+            <pre className="plat-live-result">{typeof latest.result === "string" ? latest.result : JSON.stringify(latest.result, null, 2)}</pre>
+          ) : (
+            <p className="plat-empty">{latest ? "The agent is computing from your data — the latest result will appear here." : "No output yet. Connect your data under Connectors and the agent keeps this up to date."}</p>
+          )}
+          <details className="plat-live-settings">
+            <summary>Focus &amp; settings</summary>
+            <div className="plat-form">
+              {module.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
+            </div>
+          </details>
+          <div className="plat-modal-actions">
+            {latest && <span className="plat-live-updated">Updated {latest.created_at ? new Date(latest.created_at).toLocaleString() : ""}</span>}
+            <button className="plat-ghost" onClick={refresh} disabled={sending}>{sending ? "Updating…" : "Update now"}</button>
+          </div>
         </div>
       ) : (
         <div className="plat-card">
@@ -2401,6 +2532,62 @@ function ActivityView({ runs }) {
   );
 }
 
+function AgentChat({ user, view }) {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const bodyRef = useRef(null);
+
+  useEffect(() => {
+    if (!open || loaded) return;
+    fetch(`/api/agent-chat?email=${encodeURIComponent(user.email)}`)
+      .then((r) => r.json()).then((d) => { if (Array.isArray(d.messages)) setMessages(d.messages); })
+      .catch(() => {}).finally(() => setLoaded(true));
+  }, [open]);
+
+  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [messages, open]);
+
+  const send = async (e) => {
+    e.preventDefault();
+    const text = input.trim(); if (!text || sending) return;
+    setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", content: text }]);
+    setInput(""); setSending(true);
+    let reply = null;
+    try {
+      const res = await fetch("/api/agent-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, message: text, context: { view } }) });
+      const d = await res.json().catch(() => ({}));
+      reply = d.reply;
+    } catch (e) {}
+    if (!reply) reply = "Got it — noted. (Once the agent backend is connected I can pull your live data, update records and document actions here.)";
+    setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", content: reply }]);
+    setSending(false);
+  };
+
+  return (
+    <>
+      <button className={`plat-chat-fab ${open ? "is-open" : ""}`} onClick={() => setOpen((o) => !o)} aria-label="Chat with your agent">
+        {open ? <X size={22} /> : <Bot size={26} />}
+      </button>
+      {open && (
+        <div className="plat-chat">
+          <div className="plat-chat-head"><span className="plat-chat-title"><Bot size={18} /> NEXUM Agent</span><button onClick={() => setOpen(false)} aria-label="Close"><X size={16} /></button></div>
+          <div className="plat-chat-body" ref={bodyRef}>
+            {messages.length === 0 && <div className="plat-chat-hint">Ask me anything about your business — I can pull from your data, help you update records, document decisions or answer questions.</div>}
+            {messages.map((m) => <div key={m.id} className={`plat-chat-msg ${m.role}`}>{m.content}</div>)}
+            {sending && <div className="plat-chat-msg assistant plat-chat-typing">…</div>}
+          </div>
+          <form className="plat-chat-input" onSubmit={send}>
+            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask your agent…" />
+            <button type="submit" disabled={sending} aria-label="Send"><ArrowRight size={18} /></button>
+          </form>
+        </div>
+      )}
+    </>
+  );
+}
+
 function PlatformPage() {
   const { lang } = useI18n();
   const [user, setUser] = usePlatformUser();
@@ -2460,6 +2647,10 @@ function PlatformPage() {
     await runModule({ key: "company-research", name: "Company Research", suiteKey: "strategy", deliverables: [], fields: [] }, inputs);
   };
 
+  const runTasks = async () => {
+    await runModule({ key: "daily-tasks", name: "Daily Tasks", suiteKey: "intelligence", deliverables: [], fields: [] }, {});
+  };
+
   const goto = (v) => { setView(v); setNavOpen(false); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
 
   if (!user) {
@@ -2473,6 +2664,8 @@ function PlatformPage() {
   else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} />;
   else if (view === "activity") content = <ActivityView runs={runs} />;
   else if (view === "connectors") content = <ConnectorsView user={user} />;
+  else if (view === "phases") content = <PhasesView pkg={pkg} goto={goto} />;
+  else if (view === "tasks") content = <DailyTasksView user={user} onGenerate={runTasks} />;
   else if (view.startsWith("collection:")) {
     const col = collectionByKey(view.slice(11));
     content = col ? <CollectionView collection={col} user={user} /> : null;
@@ -2502,6 +2695,8 @@ function PlatformPage() {
             <div className="plat-brand"><LayoutDashboard size={18} /> NEXUM Platform</div>
             <nav>
               {navItem("overview", "Overview", LayoutDashboard)}
+              {navItem("phases", "Phases", Sparkles)}
+              {navItem("tasks", "Daily Tasks", Check)}
 
               <div className="plat-nav-group">Operations</div>
               {COLLECTIONS.map((c) => navItem(`collection:${c.key}`, c.name, PLAT_ICONS[c.icon]))}
@@ -2541,6 +2736,7 @@ function PlatformPage() {
           </div>
         </div>
       </main>
+      <AgentChat user={user} view={view} />
     </Shell>
   );
 }

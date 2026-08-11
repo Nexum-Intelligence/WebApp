@@ -121,7 +121,7 @@ export const SUITES = [
     role: "Your digital COO & PMO team",
     modules: [
       {
-        key: "business-operations",
+        key: "business-operations", type: "live",
         name: "Business Operations",
         tagline: "KPI dashboards, reporting and connected data pipelines.",
         deliverables: ["KPI dashboard", "Monthly reporting deck", "CRM/ERP integrations", "Real-time data pipelines"],
@@ -153,7 +153,7 @@ export const SUITES = [
     role: "Your digital management & decision team",
     modules: [
       {
-        key: "predictive",
+        key: "predictive", type: "live",
         name: "Predictive Intelligence",
         tagline: "Forecasts, scenario simulations and prediction reports.",
         deliverables: ["Forecast dashboard", "Scenario simulations", "Prediction reports"],
@@ -165,7 +165,7 @@ export const SUITES = [
         ],
       },
       {
-        key: "opportunity-risk",
+        key: "opportunity-risk", type: "live",
         name: "Opportunity & Risk",
         tagline: "Opportunity/risk matrix, alerts and pattern recognition.",
         deliverables: ["Opportunity & risk matrix", "Alerts", "Pattern insights"],
@@ -176,7 +176,7 @@ export const SUITES = [
         ],
       },
       {
-        key: "decision-recommendation",
+        key: "decision-recommendation", type: "live",
         name: "Decision Recommendation",
         tagline: "ROI models, options comparison and a decision brief.",
         deliverables: ["ROI model", "Options comparison", "Decision brief"],
@@ -491,6 +491,26 @@ export const CONNECTORS = [
     fields: [{ key: "fileUrl", label: "File URL", type: "text" }],
   },
 ];
+
+// ---- Phases (artifact generation journey) ----------------------------------
+// The 5 NEXUM phases group the suites into a journey from analysis to execution.
+
+export const PHASES = [
+  { key: "analysis", num: "01", name: "Analysis", blurb: "Research, validate and understand your business.", suites: ["strategy"] },
+  { key: "creation", num: "02", name: "Creation", blurb: "Turn insight into business models, funding and brand.", suites: ["venture", "growth"] },
+  { key: "operation", num: "03", name: "Operation", blurb: "Run the business with live dashboards and delivery.", suites: ["operations"] },
+  { key: "optimization", num: "04", name: "Optimization", blurb: "Forecast, monitor risk and decide — continuously.", suites: ["intelligence"] },
+  { key: "execution", num: "05", name: "Execution", blurb: "Automate and execute decisions and campaigns.", suites: ["execution", "specialist"] },
+];
+
+// Category of a module: "analysis" (research/report), "artifact" (plan/document),
+// or "live" (continuously updated from data — no manual run).
+const ANALYSIS_MODULES = new Set(["market-intelligence", "business-model"]);
+export function moduleCategory(m) {
+  if (m.type === "live") return "live";
+  if (ANALYSIS_MODULES.has(m.key)) return "analysis";
+  return "artifact";
+}
 
 export function packageByKey(key) {
   return PACKAGES.find((p) => p.key === key) || PACKAGES[0];

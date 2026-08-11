@@ -91,6 +91,39 @@ create index if not exists company_records_email_kind_idx
 
 Served by `api/records.js` (GET list, POST insert, PATCH update, DELETE).
 
+### Agent chat table
+
+The floating agent chat (bottom-right robot button) stores its conversation here:
+
+```sql
+create table if not exists public.agent_messages (
+  id          uuid primary key default gen_random_uuid(),
+  created_at  timestamptz not null default now(),
+  email       text not null,
+  role        text not null,          -- user | assistant
+  content     text not null
+);
+create index if not exists agent_messages_email_idx
+  on public.agent_messages (email, created_at asc);
+```
+
+`api/agent-chat.js` stores each message and, if `N8N_CHAT_URL` is set, forwards
+`{ email, message, context }` to n8n and returns `{ reply }`. Without it, a
+graceful stub reply is used.
+
+### Phases, artifact categories, live modules & daily tasks
+
+- **Phases** view walks the 5 NEXUM phases (Analysis → Execution); each module is
+  tagged **Analysis** / **Artifact** / **Live**.
+- **Artifact/Analysis modules** produce a deliverable per run (`module_runs`).
+- **Live modules** (Business Operations, Predictive, Opportunity & Risk,
+  Decision) update continuously — n8n should keep their latest `module_runs.result`
+  fresh rather than waiting for a manual run.
+- **Daily Tasks**: the "Generate today's tasks" button posts a `module_runs` row
+  with `module_key = 'daily-tasks'`. Your Decision agent reads the business data
+  and writes the day's tasks into `company_records` with `kind = 'tasks'`
+  (`data = { title, priority, done, source }`). The UI lists and checks them off.
+
 ### Research auto-fill
 
 The **Company Basics** tab has a "research agent" card: the owner enters
