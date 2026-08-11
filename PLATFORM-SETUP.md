@@ -91,7 +91,14 @@ create index if not exists company_records_email_kind_idx
 
 Served by `api/records.js` (GET list, POST insert, PATCH update, DELETE).
 Kinds in use: `customers`, `inventory`, `products`, `sales`, `transactions`,
-`campaigns`, `tasks`, `connectors`.
+`campaigns`, `tasks`, `connectors`, `suppliers`, `purchases`, `staff`,
+`notifications`.
+
+**Notifications:** agents (n8n) write rows with `kind = 'notifications'`,
+`data = { severity: "recommendation"|"info"|"warning"|"critical", title,
+message, impact?, link?, read }`. The bell (top-right) and the Overview
+"Recommended for you" block read them; the UI marks them read. `link` is a view
+key (e.g. `finance`, `module:predictive`) to deep-link the user to the right tab.
 
 **POS / Warenwirtschaft:** `inventory` items carry `unitCost` + `stock`.
 `products` carry a `recipe` (`[{ itemId, qty }]`) referencing inventory ids, so

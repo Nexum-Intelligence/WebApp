@@ -81,6 +81,28 @@ export const SUITES = [
           { key: "channels", label: "How will you reach them?", type: "text" },
         ],
       },
+      {
+        key: "trend-pestel",
+        name: "Trend & PESTEL Analysis",
+        tagline: "Spot macro trends and political, economic, social and tech forces.",
+        deliverables: ["Trend radar", "PESTEL canvas", "Implications"],
+        fields: [
+          { key: "focus", label: "What should we scan for?", type: "textarea", required: true },
+          { key: "market", label: "Market / region", type: "text" },
+          { key: "horizon", label: "Time horizon", type: "select", options: ["1 year", "3 years", "5 years"] },
+        ],
+      },
+      {
+        key: "strategic-planning",
+        name: "Strategic Planning",
+        tagline: "Turn goals into a strategy map, OKRs and prioritised initiatives.",
+        deliverables: ["Strategy map", "OKRs", "Initiative backlog"],
+        fields: [
+          { key: "objective", label: "Main strategic objective", type: "textarea", required: true },
+          { key: "timeframe", label: "Timeframe", type: "select", options: ["6 months", "12 months", "3 years"] },
+          { key: "constraints", label: "Constraints", type: "textarea" },
+        ],
+      },
     ],
   },
   {
@@ -134,6 +156,39 @@ export const SUITES = [
           { key: "targetSegment", label: "First target segment", type: "text" },
           { key: "channels", label: "Channels to reach them", type: "text" },
           { key: "timeline", label: "Target launch timeframe", type: "text" },
+        ],
+      },
+      {
+        key: "financial-planning",
+        name: "Financial Planning",
+        tagline: "A 3-statement model, cash-flow plan and break-even.",
+        deliverables: ["Financial model", "Cash-flow plan", "Break-even analysis"],
+        fields: [
+          { key: "revenueModel", label: "How do you earn revenue?", type: "textarea", required: true },
+          { key: "mainCosts", label: "Main cost drivers", type: "textarea" },
+          { key: "horizon", label: "Planning horizon", type: "select", options: ["12 months", "3 years", "5 years"] },
+        ],
+      },
+      {
+        key: "scaling-strategy",
+        name: "Scaling Strategy",
+        tagline: "Scale-up plan with unit economics (LTV/CAC) and growth loops.",
+        deliverables: ["Scaling plan", "LTV/CAC model", "Growth loops", "PMF scorecard"],
+        fields: [
+          { key: "stage", label: "Current stage", type: "select", options: ["Pre-PMF", "Early traction", "Scaling"] },
+          { key: "bottleneck", label: "Biggest growth bottleneck", type: "textarea", required: true },
+          { key: "goal", label: "Scaling goal", type: "text" },
+        ],
+      },
+      {
+        key: "subsidy-research",
+        name: "Subsidy & Grant Research",
+        tagline: "Find grants and funding programmes you qualify for.",
+        deliverables: ["Funding opportunities", "Eligibility check", "Application checklist"],
+        fields: [
+          { key: "projectType", label: "What are you funding?", type: "text", required: true },
+          { key: "location", label: "Location / region", type: "text" },
+          { key: "fundingNeed", label: "Funding need", type: "text" },
         ],
       },
     ],
@@ -190,6 +245,28 @@ export const SUITES = [
           { key: "constraints", label: "Constraints (budget, team, time)", type: "textarea" },
         ],
       },
+      {
+        key: "conversion-funnel",
+        name: "Conversion Funnel Analysis",
+        tagline: "Find where you lose customers and the quickest wins.",
+        deliverables: ["Funnel map", "Drop-off analysis", "Quick wins"],
+        fields: [
+          { key: "funnel", label: "Your funnel stages", type: "textarea", required: true },
+          { key: "channel", label: "Main channel", type: "text" },
+          { key: "goal", label: "Optimise for", type: "select", options: ["Awareness", "Leads", "Sales", "Retention"] },
+        ],
+      },
+      {
+        key: "content-plan",
+        name: "Social & Content Plan",
+        tagline: "A content calendar with post ideas across your channels.",
+        deliverables: ["Content calendar", "Post ideas", "Channel plan"],
+        fields: [
+          { key: "channels", label: "Channels", type: "text", required: true },
+          { key: "audience", label: "Audience", type: "text" },
+          { key: "cadence", label: "Posting cadence", type: "select", options: ["Weekly", "2× / week", "Daily"] },
+        ],
+      },
     ],
   },
   {
@@ -220,6 +297,28 @@ export const SUITES = [
           { key: "objectives", label: "Objectives & deliverables", type: "textarea" },
           { key: "deadline", label: "Target deadline", type: "text", placeholder: "e.g. Q4 2026" },
           { key: "stakeholders", label: "Key stakeholders", type: "text" },
+        ],
+      },
+      {
+        key: "process-optimization",
+        name: "Process Optimization",
+        tagline: "Map a process, find the bottlenecks and document SOPs.",
+        deliverables: ["Process map", "Bottleneck analysis", "SOPs"],
+        fields: [
+          { key: "process", label: "Which process?", type: "textarea", required: true },
+          { key: "painPoints", label: "Pain points", type: "textarea" },
+          { key: "goal", label: "Goal", type: "text" },
+        ],
+      },
+      {
+        key: "kpi-estimation",
+        name: "KPI Estimation",
+        tagline: "Benchmark KPIs and set realistic targets for your business.",
+        deliverables: ["KPI benchmarks", "Targets", "Dashboard spec"],
+        fields: [
+          { key: "focusArea", label: "Which area?", type: "text", required: true },
+          { key: "currentMetrics", label: "Current numbers (if any)", type: "textarea" },
+          { key: "timeframe", label: "Timeframe", type: "select", options: ["Monthly", "Quarterly", "Yearly"] },
         ],
       },
     ],
@@ -303,6 +402,28 @@ export const SUITES = [
           { key: "task", label: "What do you need help with?", type: "textarea", required: true },
           { key: "urgency", label: "Urgency", type: "select", options: ["Low", "Normal", "High"] },
           { key: "context", label: "Relevant context", type: "textarea" },
+        ],
+      },
+      {
+        key: "hr-planning",
+        name: "HR & Hiring Plan",
+        tagline: "Org chart, hiring roadmap and role profiles.",
+        deliverables: ["Org chart", "Hiring roadmap", "Role profiles"],
+        fields: [
+          { key: "currentTeam", label: "Current team & roles", type: "textarea", required: true },
+          { key: "gaps", label: "Skill / role gaps", type: "textarea" },
+          { key: "budget", label: "Hiring budget", type: "text" },
+        ],
+      },
+      {
+        key: "app-development",
+        name: "App & Tech Blueprint",
+        tagline: "Requirements, tech spec, DB schema and an MVP guide.",
+        deliverables: ["Requirements", "Tech spec", "DB schema", "MVP guide"],
+        fields: [
+          { key: "idea", label: "What should the app do?", type: "textarea", required: true },
+          { key: "platform", label: "Platform", type: "select", options: ["Web", "iOS", "Android", "Cross-platform"] },
+          { key: "coreFeatures", label: "Core features", type: "textarea" },
         ],
       },
     ],
@@ -624,7 +745,71 @@ export const PHASES = [
 
 // Category of a module: "analysis" (research/report), "artifact" (plan/document),
 // or "live" (continuously updated from data — no manual run).
-const ANALYSIS_MODULES = new Set(["market-intelligence", "business-model", "competitor-analysis", "swot-analysis", "customer-validation"]);
+const ANALYSIS_MODULES = new Set(["market-intelligence", "business-model", "competitor-analysis", "swot-analysis", "customer-validation", "trend-pestel", "subsidy-research", "conversion-funnel", "kpi-estimation"]);
+
+// ---- Industry configuration ------------------------------------------------
+// The industry is chosen at sign-up. It tailors the vocabulary (what a
+// "customer", "product" and "sale" are called) and which Operations tabs show.
+// `ops` lists the operations keys to display, in order.
+//   customers | products | inventory | suppliers | purchasing | pos |
+//   finance | transactions | marketing | staff
+
+const FULL_OPS = ["customers", "products", "inventory", "suppliers", "purchasing", "pos", "finance", "transactions", "marketing", "staff"];
+const SERVICE_OPS = ["customers", "products", "pos", "finance", "transactions", "staff", "marketing"];
+
+export const INDUSTRIES = [
+  { key: "gastro", name: "Gastronomy / Restaurant", customer: "Guests", product: "Menu", sale: "Orders", ops: FULL_OPS,
+    hint: "Watch food-cost %, covers, waste and revenue per seat/hour." },
+  { key: "hotel", name: "Hotel / Hospitality", customer: "Guests", product: "Rooms & Services", sale: "Bookings", ops: FULL_OPS,
+    hint: "Watch occupancy, RevPAR, average daily rate and length of stay." },
+  { key: "doctor", name: "Medical practice / Doctors", customer: "Patients", product: "Treatments", sale: "Appointments",
+    ops: ["customers", "products", "pos", "inventory", "finance", "transactions", "staff", "marketing"],
+    hint: "Watch utilisation, no-show rate, reimbursement mix and compliance deadlines." },
+  { key: "lawyer", name: "Law firm / Lawyers", customer: "Clients", product: "Services / Matters", sale: "Billing", ops: SERVICE_OPS,
+    hint: "Watch billable-hour utilisation, effective rate, matter margin and deadlines." },
+  { key: "services", name: "Professional Services", customer: "Clients", product: "Services", sale: "Projects", ops: SERVICE_OPS,
+    hint: "Watch utilisation, effective hourly rate, project margin and pipeline coverage." },
+  { key: "product", name: "Physical Product / Retail", customer: "Customers", product: "Products", sale: "Sales", ops: FULL_OPS,
+    hint: "Watch sell-through, dead stock, basket size and return rate." },
+  { key: "digital", name: "Digital Product / SaaS", customer: "Customers", product: "Plans & Features", sale: "Subscriptions", ops: SERVICE_OPS,
+    hint: "Watch MRR, churn, CAC payback and activation. Small retention gains compound." },
+  { key: "artist", name: "Artist / Creative", customer: "Collectors & Clients", product: "Works", sale: "Sales",
+    ops: ["customers", "products", "finance", "transactions", "marketing"],
+    hint: "Watch sell-through of works, commission pipeline and channel mix." },
+  { key: "other", name: "Other", customer: "Customers", product: "Products & Services", sale: "Sales", ops: FULL_OPS,
+    hint: "Connect your data and your agents highlight the KPIs that matter most." },
+];
+
+export function industryConfig(key) {
+  return INDUSTRIES.find((i) => i.key === key) || INDUSTRIES.find((i) => i.key === "other");
+}
+export function industryHint(key) {
+  return industryConfig(key).hint;
+}
+// Per-industry field-label overrides: FIELD_OVERRIDES[indKey][collectionKey][fieldKey] = "Label".
+// Fields without an override keep their default label. Extend per industry over time.
+export const FIELD_OVERRIDES = {
+  gastro: { customers: { name: "Guest", company: "Company (optional)", value: "Avg spend (€)", stage: "Guest type" } },
+  hotel: { customers: { name: "Guest", value: "Booking value (€)", stage: "Guest type" } },
+  doctor: { customers: { name: "Patient", company: "Insurance", value: "Case value (€)", stage: "Status" }, staff: { salary: "Monthly cost (€)" } },
+  lawyer: { customers: { name: "Client", value: "Matter value (€)", stage: "Client stage" } },
+  services: { customers: { name: "Client", value: "Contract value (€)" } },
+  digital: { customers: { name: "Account", value: "MRR (€)", stage: "Lifecycle stage" } },
+  artist: { customers: { name: "Collector", value: "Sale value (€)" } },
+};
+export function fieldLabel(indKey, collectionKey, fieldKey, fallback) {
+  const c = FIELD_OVERRIDES[indKey] && FIELD_OVERRIDES[indKey][collectionKey];
+  return (c && c[fieldKey]) || fallback;
+}
+
+// Display label for an operations tab under a given industry.
+export function opLabel(ind, key) {
+  if (key === "customers") return ind.customer;
+  if (key === "products") return ind.product;
+  if (key === "pos") return ind.sale;
+  const names = { inventory: "Inventory", suppliers: "Suppliers", purchasing: "Purchasing", finance: "Finance", transactions: "Income & Expenses", marketing: "Marketing", staff: "Staff" };
+  return names[key] || key;
+}
 export function moduleCategory(m) {
   if (m.type === "live") return "live";
   if (ANALYSIS_MODULES.has(m.key)) return "analysis";

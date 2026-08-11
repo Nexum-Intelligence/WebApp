@@ -33,7 +33,7 @@ import previewModuleUrl from "./assets/preview-choose-module.html?url";
 import previewValidateUrl from "./assets/preview-validate.html?url";
 import previewContactUrl from "./assets/preview-contact.html?url";
 import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
-import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, PHASES, packageByKey, collectionByKey, allModules, moduleCategory } from "./modules.js";
+import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, PHASES, INDUSTRIES, packageByKey, collectionByKey, allModules, moduleCategory, industryHint, industryConfig, opLabel, fieldLabel } from "./modules.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -1886,23 +1886,31 @@ function usePlatformUser() {
 }
 
 function PlatformSignIn({ onSignIn }) {
-  const [form, setForm] = useState({ name: "", email: "", company: "" });
+  const [form, setForm] = useState({ name: "", email: "", company: "", industry: "" });
   const [err, setErr] = useState("");
   const submit = (e) => {
     e.preventDefault();
     if (!form.name || !form.email) { setErr("Please enter your name and work email."); return; }
+    if (!form.industry) { setErr("Please pick your industry — it tailors the platform to your business."); return; }
     onSignIn({ ...form });
   };
   return (
     <div className="plat-auth">
       <div className="plat-auth-card">
         <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>
-        <h1>Sign in to your platform</h1>
-        <p>Access your suites and run your NEXUM agent modules.</p>
+        <h1>Set up your platform</h1>
+        <p>Your industry tailors the vocabulary and the tools you see.</p>
         <form onSubmit={submit}>
           <label>Full name<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label>
           <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></label>
           <label>Company<input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></label>
+          <label>Industry
+            <select value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} required>
+              <option value="">— select your industry —</option>
+              {INDUSTRIES.filter((i) => i.key !== "other").map((i) => <option key={i.key} value={i.key}>{i.name}</option>)}
+              <option value="other">Other</option>
+            </select>
+          </label>
           {err && <p className="plat-err">{err}</p>}
           <button className="primary-button glow-button" type="submit">Enter platform <ArrowRight size={18} /></button>
         </form>
@@ -1914,6 +1922,14 @@ function PlatformSignIn({ onSignIn }) {
 const PLAT_ICONS = {
   shield: ShieldCheck, spark: Sparkles, compass: Globe, growth: Zap,
   rocket: Workflow, dashboard: LayoutDashboard, brain: BrainCircuit, cpu: Cpu,
+};
+
+// operations key -> [route, icon] for the industry-driven Operations nav
+const OP_ROUTE = {
+  customers: ["collection:customers", Globe], products: ["products", Sparkles],
+  inventory: ["collection:inventory", LayoutDashboard], suppliers: ["collection:suppliers", Globe],
+  purchasing: ["purchasing", Workflow], pos: ["pos", ShieldCheck], finance: ["finance", Cpu],
+  transactions: ["collection:transactions", Workflow], marketing: ["collection:campaigns", Zap], staff: ["collection:staff", Bot],
 };
 
 // Map a module input field to the company-profile field it can be pre-filled from
@@ -1965,7 +1981,9 @@ function fmtCell(value, kind) {
   return value === "" || value == null ? "—" : String(value);
 }
 
-function CollectionView({ collection, user }) {
+function CollectionView({ collection, user, label, industryKey }) {
+  const title = label || collection.name;
+  const flabel = (f) => fieldLabel(industryKey, collection.key, f.key, f.label);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // "new" | id | null
@@ -2019,25 +2037,25 @@ function CollectionView({ collection, user }) {
   return (
     <div className="plat-view">
       <div className="plat-view-head">
-        <h1><Ico size={22} /> {collection.name}</h1>
+        <h1><Ico size={22} /> {title}</h1>
         <p>{collection.intro}</p>
       </div>
 
       <div className="plat-kpis plat-kpis-3">
-        {summary.map((k) => (
-          <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span></div>
+        {summary.map((k, idx) => (
+          <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label} <InfoButton text={(collection.kpiInfo && collection.kpiInfo[idx]) || `Live metric from your ${collection.name} data.`} /></span></div>
         ))}
       </div>
 
       <div className="plat-card">
         <div className="plat-table-top">
-          <h3>{collection.name}</h3>
+          <h3>{title}</h3>
           {editing == null && <button className="plat-start" onClick={startAdd}>Add {collection.singular} <ArrowRight size={15} /></button>}
         </div>
 
         {editing != null && (
           <form onSubmit={save} className="plat-form plat-record-form">
-            {collection.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
+            {collection.fields.map((f) => <PlatField key={f.key} f={{ ...f, label: flabel(f) }} value={values[f.key]} onChange={set} />)}
             {err && <p className="plat-err plat-full">{err}</p>}
             <div className="plat-modal-actions plat-full">
               <button type="button" className="plat-ghost" onClick={() => setEditing(null)}>Cancel</button>
@@ -2054,7 +2072,7 @@ function CollectionView({ collection, user }) {
           <div className="plat-table-wrap">
             <table className="plat-table">
               <thead>
-                <tr>{collection.columns.map((c) => <th key={c[0]}>{c[1]}</th>)}<th aria-label="actions" /></tr>
+                <tr>{collection.columns.map((c) => <th key={c[0]}>{fieldLabel(industryKey, collection.key, c[0], c[1])}</th>)}<th aria-label="actions" /></tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
@@ -2084,7 +2102,8 @@ function productCost(data, inventory) {
   }, 0);
 }
 
-function ProductsView({ user }) {
+function ProductsView({ user, label }) {
+  const title = label || "Products";
   const [products, setProducts] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2130,7 +2149,7 @@ function ProductsView({ user }) {
 
   return (
     <div className="plat-view">
-      <div className="plat-view-head"><h1><Sparkles size={22} /> Products (POS)</h1><p>Your products with their ingredients/goods, costs and margin. Costs come from Inventory.</p></div>
+      <div className="plat-view-head"><h1><Sparkles size={22} /> {title}</h1><p>Your {title.toLowerCase()} with their ingredients/goods, costs and margin. Costs come from Inventory.</p></div>
 
       <div className="plat-kpis plat-kpis-3">
         <div className="plat-kpi"><span className="plat-kpi-val">{rows.length}</span><span className="plat-kpi-label">Products</span></div>
@@ -2202,7 +2221,8 @@ function ProductsView({ user }) {
   );
 }
 
-function PosView({ user }) {
+function PosView({ user, label }) {
+  const title = label || "Sales";
   const [products, setProducts] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [sales, setSales] = useState([]);
@@ -2249,7 +2269,7 @@ function PosView({ user }) {
 
   return (
     <div className="plat-view">
-      <div className="plat-view-head"><h1><Sparkles size={22} /> Sales (POS)</h1><p>Record a sale — revenue, cost of goods and profit are calculated, income is booked and stock is reduced.</p></div>
+      <div className="plat-view-head"><h1><Sparkles size={22} /> {title}</h1><p>Record a sale — revenue, cost of goods and profit are calculated, income is booked and stock is reduced.</p></div>
 
       <div className="plat-kpis plat-kpis-3">
         <div className="plat-kpi"><span className="plat-kpi-val">{money(totRev)}</span><span className="plat-kpi-label">Revenue</span></div>
@@ -2775,7 +2795,60 @@ function DailyTasksView({ user, onGenerate }) {
   );
 }
 
-function OverviewView({ user, pkg, runs, company, goto }) {
+function InfoButton({ text }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="plat-info" onMouseLeave={() => setOpen(false)}>
+      <button type="button" className="plat-info-btn" onClick={() => setOpen((o) => !o)} onMouseEnter={() => setOpen(true)} aria-label="Info">i</button>
+      {open && <span className="plat-info-pop">{text}</span>}
+    </span>
+  );
+}
+
+const NOTE_SEV = {
+  recommendation: { tone: "indigo", label: "Recommendation" },
+  info: { tone: "sky", label: "Info" },
+  warning: { tone: "amber", label: "Early warning" },
+  critical: { tone: "red", label: "Warning" },
+};
+
+function NotificationBell({ notifications, onRead, onReadAll, goto }) {
+  const [open, setOpen] = useState(false);
+  const unread = notifications.filter((n) => !(n.data || {}).read).length;
+  return (
+    <div className="plat-bell-wrap" onMouseLeave={() => setOpen(false)}>
+      <button className="plat-bell" onClick={() => setOpen((o) => !o)} aria-label="Notifications">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+        {unread > 0 && <span className="plat-bell-badge">{unread > 9 ? "9+" : unread}</span>}
+      </button>
+      {open && (
+        <div className="plat-notes">
+          <div className="plat-notes-head"><b>Notifications</b>{unread > 0 && <button onClick={onReadAll}>Mark all read</button>}</div>
+          <div className="plat-notes-body">
+            {notifications.length === 0 ? (
+              <p className="plat-empty">No notifications yet. Your agents alert you here — recommendations, early warnings and warnings.</p>
+            ) : notifications.map((n) => {
+              const d = n.data || {}; const sev = NOTE_SEV[d.severity] || NOTE_SEV.info;
+              return (
+                <button key={n.id} className={`plat-note ${d.read ? "is-read" : ""}`} onClick={() => { onRead(n); if (d.link) goto(d.link); setOpen(false); }}>
+                  <span className={`plat-note-dot tone-${sev.tone}`} />
+                  <div>
+                    <b>{d.title || sev.label}</b>
+                    <span className="plat-note-msg">{d.message}</span>
+                    {d.impact && <span className="plat-note-impact">{d.impact}</span>}
+                    <span className="plat-note-time">{d.created_at ? new Date(d.created_at).toLocaleString() : (n.created_at ? new Date(n.created_at).toLocaleString() : "")}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OverviewView({ user, pkg, runs, company, goto, notifications = [], onNoteRead }) {
   const modulesAvailable = allModules().filter((m) => pkg.suites.includes(m.suiteKey)).length;
   const totalCompanyFields = COMPANY_SECTIONS.reduce((n, s) => n + s.fields.length, 0);
   const filledCompanyFields = COMPANY_SECTIONS.reduce(
@@ -2783,15 +2856,39 @@ function OverviewView({ user, pkg, runs, company, goto }) {
   const completeness = totalCompanyFields ? Math.round((filledCompanyFields / totalCompanyFields) * 100) : 0;
   const startedModules = new Set(runs.map((r) => r.module_key)).size;
   const done = runs.filter((r) => r.status === "done" || r.status === "completed").length;
+  const [metrics, setMetrics] = useState(null);
+  useEffect(() => {
+    let ok = true;
+    fetch(`/api/context?email=${encodeURIComponent(user.email)}`).then((r) => r.json()).then((d) => { if (ok && d && d.data) setMetrics(d.data); }).catch(() => {});
+    return () => { ok = false; };
+  }, []);
+  const m = metrics || {}; const fin = m.finance || {}; const cust = m.customers || {}; const tk = m.tasks || {};
   const kpis = [
-    { label: "Company profile", value: `${completeness}%`, hint: "complete" },
-    { label: "Modules available", value: modulesAvailable, hint: `in ${pkg.name}` },
-    { label: "Modules started", value: startedModules, hint: `${runs.length} runs total` },
-    { label: "Deliverables ready", value: done, hint: "completed by agents" },
+    { label: "Revenue", value: money(fin.revenue), hint: "booked income" },
+    { label: "Profit", value: money(fin.profit), hint: "after all costs" },
+    { label: "Pipeline", value: money(cust.pipeline), hint: `${cust.customers || 0} customers` },
+    { label: "Open tasks", value: tk.open || 0, hint: "from your agents" },
   ];
   return (
     <div className="plat-view">
       <div className="plat-view-head"><h1>Overview</h1><p>Your business at a glance. Your agent team, live status, company data and deliverables.</p></div>
+      <div className="plat-industry-hint"><Sparkles size={14} /> {industryHint(user.industry)}</div>
+      {(() => {
+        const alerts = notifications.filter((n) => !(n.data || {}).read && ["recommendation", "warning", "critical"].includes((n.data || {}).severity)).slice(0, 3);
+        if (alerts.length === 0) return null;
+        return (
+          <div className="plat-card plat-alerts">
+            <div className="plat-agents-title"><span className="plat-live-badge"><span className="plat-live-dot" /> Recommended for you</span><span>What your agents suggest you act on now.</span></div>
+            {alerts.map((n) => { const d = n.data || {}; const sev = NOTE_SEV[d.severity] || NOTE_SEV.info; return (
+              <button key={n.id} className="plat-alert" onClick={() => { if (onNoteRead) onNoteRead(n); if (d.link) goto(d.link); }}>
+                <span className={`plat-note-dot tone-${sev.tone}`} />
+                <div><b>{d.title}</b><span className="plat-note-msg">{d.message}</span></div>
+                {d.impact && <span className="plat-note-impact">{d.impact}</span>}
+              </button>
+            ); })}
+          </div>
+        );
+      })()}
       <div className="plat-card plat-agents-card">
         <div className="plat-agents-title"><span className="plat-live-badge"><span className="plat-live-dot" /> Agents</span><span>Live view of what your agent team is doing — click an agent to open it.</span></div>
         <AgentConstellation runs={runs} goto={goto} pkg={pkg} />
@@ -2896,7 +2993,7 @@ function FinanceDashboardView({ user }) {
       <div className="plat-view-head"><h1><Cpu size={22} /> Finance</h1><p>Your live financial picture — calculated from Income &amp; Expenses and POS sales, not entered by hand.</p></div>
       <div className="plat-kpis">{kpis.map((k) => <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span></div>)}</div>
       <div className="plat-card">
-        <h3>Revenue · Expenses · Profit</h3>
+        <h3>Revenue · Expenses · Profit <InfoButton text="Revenue = booked income (POS sales). Expenses = expense entries + active staff cost. Cost of goods from POS. Profit = revenue − expenses − cost of goods." /></h3>
         <MiniBars items={[
           { label: "Revenue", value: income, color: "#4ade80" },
           { label: "Expenses", value: expense, color: "#f87171" },
@@ -3018,7 +3115,7 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
       ) : (
         <>
           <div className="plat-card">
-            <div className="plat-result-head"><h3>{isLive ? "Live result" : "Result"}</h3>{st && <span className={`plat-status tone-${st.tone}`}>{st.label}</span>}</div>
+            <div className="plat-result-head"><h3>{isLive ? "Live result" : "Result"} <InfoButton text="Generated by your agent from your company profile and live business data. You can edit and save any changes." /></h3>{st && <span className={`plat-status tone-${st.tone}`}>{st.label}</span>}</div>
             {latest ? (
               <>
                 <textarea className="plat-result-edit" rows="9" value={resultText} onChange={(e) => { setResultText(e.target.value); setSavedResult(false); }} placeholder="The agent's result appears here — you can edit it and save." />
@@ -3182,8 +3279,10 @@ function PlatformPage() {
   const [company, setCompany] = useState({});
   const [toast, setToast] = useState("");
   const [navOpen, setNavOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   const pkg = packageByKey(pkgKey);
+  const ind = industryConfig(user && user.industry);
 
   useEffect(() => {
     if (!user) return;
@@ -3194,6 +3293,16 @@ function PlatformPage() {
     fetch(`/api/company?email=${encodeURIComponent(user.email)}`)
       .then((r) => r.json()).then((d) => { if (ok && d && d.data && Object.keys(d.data).length) setCompany(d.data); }).catch(() => {});
     return () => { ok = false; };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let ok = true;
+    const load = () => fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=notifications`)
+      .then((r) => r.json()).then((d) => { if (ok && Array.isArray(d.records)) setNotifications(d.records); }).catch(() => {});
+    load();
+    const iv = window.setInterval(load, 60000);
+    return () => { ok = false; window.clearInterval(iv); };
   }, [user]);
 
   const setPackage = (k) => { setPkgKey(k); try { window.localStorage.setItem("nexum_pkg", k); } catch (e) {} };
@@ -3231,6 +3340,17 @@ function PlatformPage() {
     await runModule({ key: "company-research", name: "Company Research", suiteKey: "strategy", deliverables: [], fields: [] }, inputs);
   };
 
+  const markNoteRead = async (note) => {
+    const data = { ...(note.data || {}), read: true };
+    setNotifications((ns) => ns.map((x) => (x.id === note.id ? { ...x, data } : x)));
+    try { await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: note.id, email: user.email, data }) }); } catch (e) {}
+  };
+  const markAllNotesRead = async () => {
+    const unread = notifications.filter((n) => !(n.data || {}).read);
+    setNotifications((ns) => ns.map((x) => ({ ...x, data: { ...(x.data || {}), read: true } })));
+    for (const n of unread) { try { await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: n.id, email: user.email, data: { ...(n.data || {}), read: true } }) }); } catch (e) {} }
+  };
+
   const runTasks = async () => {
     await runModule({ key: "daily-tasks", name: "Daily Tasks", suiteKey: "intelligence", deliverables: [], fields: [] }, {});
   };
@@ -3244,22 +3364,22 @@ function PlatformPage() {
   const firstName = (user.name || "").split(" ")[0] || user.name;
 
   let content = null;
-  if (view === "overview") content = <OverviewView user={user} pkg={pkg} runs={runs} company={company} goto={goto} />;
+  if (view === "overview") content = <OverviewView user={user} pkg={pkg} runs={runs} company={company} goto={goto} notifications={notifications} onNoteRead={markNoteRead} />;
   else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} />;
   else if (view === "activity") content = <ActivityView runs={runs} />;
   else if (view === "connectors") content = <ConnectorsView user={user} />;
   else if (view === "subscription") content = <SubscriptionView pkg={pkg} setPackage={setPackage} />;
-  else if (view === "products") content = <ProductsView user={user} />;
-  else if (view === "pos") content = <PosView user={user} />;
+  else if (view === "products") content = <ProductsView user={user} label={ind.product} />;
+  else if (view === "pos") content = <PosView user={user} label={ind.sale} />;
   else if (view === "finance") content = <FinanceDashboardView user={user} />;
   else if (view === "purchasing") content = <PurchasingView user={user} />;
-  else if (view === "invoices") content = <InvoicesView user={user} />;
   else if (view === "profile") content = <ProfileView company={company} onSaveAll={saveCompanyAll} onResearch={runResearch} />;
   else if (view === "phases") content = <PhasesView pkg={pkg} goto={goto} />;
   else if (view === "tasks") content = <DailyTasksView user={user} onGenerate={runTasks} />;
   else if (view.startsWith("collection:")) {
     const col = collectionByKey(view.slice(11));
-    content = col ? <CollectionView collection={col} user={user} /> : null;
+    const colLabel = col ? (col.key === "customers" ? ind.customer : col.key === "campaigns" ? "Marketing" : col.name) : "";
+    content = col ? <CollectionView collection={col} user={user} label={colLabel} industryKey={user.industry} /> : null;
   } else if (view.startsWith("company:")) {
     const section = COMPANY_SECTIONS.find((s) => s.key === view.slice(8));
     content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} onResearch={runResearch} user={user} /> : null;
@@ -3290,17 +3410,7 @@ function PlatformPage() {
               {navItem("tasks", "Daily Tasks", Check)}
 
               <div className="plat-nav-group">Operations</div>
-              {navItem("collection:customers", "Customers (CRM)", Globe)}
-              {navItem("products", "Products (POS)", Sparkles)}
-              {navItem("collection:inventory", "Inventory", LayoutDashboard)}
-              {navItem("collection:suppliers", "Suppliers", Globe)}
-              {navItem("purchasing", "Purchasing", Workflow)}
-              {navItem("pos", "Sales (POS)", ShieldCheck)}
-              {navItem("invoices", "Invoices", ShieldCheck)}
-              {navItem("finance", "Finance", Cpu)}
-              {navItem("collection:transactions", "Income & Expenses", Workflow)}
-              {navItem("collection:campaigns", "Marketing (CRM)", Zap)}
-              {navItem("collection:staff", "Staff", Bot)}
+              {ind.ops.map((key) => { const r = OP_ROUTE[key]; return r ? navItem(r[0], opLabel(ind, key), r[1]) : null; })}
 
               <div className="plat-nav-group">Company</div>
               {navItem("profile", "Company Profile", ShieldCheck)}
@@ -3331,6 +3441,7 @@ function PlatformPage() {
           </aside>
 
           <div className="plat-main">
+            <div className="plat-topbar"><NotificationBell notifications={notifications} onRead={markNoteRead} onReadAll={markAllNotesRead} goto={goto} /></div>
             {toast && <div className="plat-toast"><Check size={16} /> {toast}</div>}
             {content}
           </div>
