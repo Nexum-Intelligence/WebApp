@@ -88,7 +88,8 @@ function loadSkill(moduleKey) {
 async function fetchContext(email) {
   if (!PLATFORM_URL) return "";
   try {
-    const r = await fetch(`${PLATFORM_URL}/api/context?email=${encodeURIComponent(email)}`);
+    // /api/context only answers server-to-server calls that carry the internal key
+    const r = await fetch(`${PLATFORM_URL}/api/context?email=${encodeURIComponent(email)}`, { headers: { "x-nexum-key": process.env.NEXUM_INTERNAL_KEY || "" } });
     if (!r.ok) return "";
     const d = await r.json();
     return d.context || "";

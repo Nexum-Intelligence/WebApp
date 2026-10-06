@@ -1,248 +1,136 @@
-# NEXUM Platform — setup (frontend + DB)
+# NEXUM Platform — Setup
 
-The post-login platform lets a business owner open a **module**, fill out its
-tasks, and submit. Submitting writes one row to the Supabase table
-`module_runs`. **That INSERT is the trigger line that starts the agentic
-workflow in n8n.** This app only does the frontend + the DB write; the agent
-logic lives in n8n.
-
-## 1. Frontend (already built)
-
-- Route: `/platform` (the header "PLATFORM" button links here).
-- Data model: `src/modules.js` — 8 suites, their agent modules (with input
-  tasks + deliverables), and the 7 customer packages from the pricing PDF.
-- UI: `PlatformPage` in `src/App.jsx` — sign-in gate, suites/modules grouped,
-  suites locked/unlocked by the selected plan, a module form modal, and a
-  "Your module runs" history list.
-- Serverless: `api/module-run.js` — `POST` inserts a run, `GET ?email=` lists a
-  user's runs. Degrades gracefully (works even before Supabase is configured).
-
-> Note: login is currently a lightweight mock (name + email stored in the
-> browser). Swap for Supabase Auth when you want real accounts + per-user RLS.
-
-## 2. Supabase table
-
-Run this in Supabase → SQL editor:
-
-```sql
-create table if not exists public.module_runs (
-  id           uuid primary key default gen_random_uuid(),
-  created_at   timestamptz not null default now(),
-  email        text not null,
-  name         text,
-  company      text,
-  package_key  text,
-  suite_key    text,
-  module_key   text not null,
-  module_name  text,
-  inputs       jsonb not null default '{}'::jsonb,
-  status       text  not null default 'queued',   -- queued | running | needs_input | done | error
-  questions    jsonb,                              -- agent's open questions (clarification loop)
-  result       jsonb,                              -- agent writes deliverables here
-  lang         text,
-  source       text default 'platform'
-);
-
-create index if not exists module_runs_email_idx
-  on public.module_runs (email, created_at desc);
-```
-
-The serverless function uses the **service_role** key, so Row Level Security
-is bypassed server-side. If you later expose the table to the browser client,
-add RLS policies (e.g. `email = auth.jwt() ->> 'email'`).
-
-### Company profile table
-
-The cockpit's **Company data** tabs (Basics, Product, Customers, Marketing,
-Finance, Team, Goals) are saved here — one row per user — and passed to every
-module run as context (`inputs._company`), so agents share the same business
-knowledge:
-
-```sql
-create table if not exists public.company_profiles (
-  email       text primary key,
-  name        text,
-  company     text,
-  data        jsonb not null default '{}'::jsonb,
-  updated_at  timestamptz not null default now()
-);
-```
-
-`api/company.js` upserts on the `email` primary key
-(`Prefer: resolution=merge-duplicates`).
-
-### Operational records table (CRM / POS / Finance / Marketing)
-
-The **Operations** tabs — Customers (CRM), Products (POS), Income & Expenses,
-Marketing — are generic CRUD tables. Every collection lives in one table,
-keyed by `kind` (`customers` | `products` | `transactions` | `campaigns`):
-
-```sql
-create table if not exists public.company_records (
-  id          uuid primary key default gen_random_uuid(),
-  created_at  timestamptz not null default now(),
-  email       text not null,
-  kind        text not null,
-  data        jsonb not null default '{}'::jsonb
-);
-
-create index if not exists company_records_email_kind_idx
-  on public.company_records (email, kind, created_at desc);
-```
-
-Served by `api/records.js` (GET list, POST insert, PATCH update, DELETE).
-Kinds in use: `customers`, `inventory`, `products`, `sales`, `transactions`,
-`campaigns`, `tasks`, `connectors`, `suppliers`, `purchases`, `staff`,
-`notifications`, `artifacts`.
-
-**Artifact files (Supabase Storage):** the agent worker saves each non-live
-deliverable as a Markdown file in a Storage bucket (default `artifacts`) and
-records a link as kind `artifacts` (`data = { module_key, title, format, url,
-run_id }`). The Deliverables tab lists these with a download link. Create a
-public bucket named `artifacts` (Supabase → Storage), or set `ARTIFACTS_BUCKET`.
-For private buckets, switch `getPublicUrl` to `createSignedUrl` in the worker.
-
-**Agent orchestration & research:** the worker runs each module agent with the
-Claude Agent SDK using per-module Skills (`agent-worker/catalog.json` gives every
-module a matched skill), and enables **WebSearch/WebFetch** plus three
-**subagents** (`researcher`, `analyst`, `quality`) so the agent can research,
-self-orchestrate and quality-review before finalising.
-
-**Notifications:** agents (n8n) write rows with `kind = 'notifications'`,
-`data = { severity: "recommendation"|"info"|"warning"|"critical", title,
-message, impact?, link?, read }`. The bell (top-right) and the Overview
-"Recommended for you" block read them; the UI marks them read. `link` is a view
-key (e.g. `finance`, `module:predictive`) to deep-link the user to the right tab.
-
-**POS / Warenwirtschaft:** `inventory` items carry `unitCost` + `stock`.
-`products` carry a `recipe` (`[{ itemId, qty }]`) referencing inventory ids, so
-product **cost** = Σ(qty × item unitCost) and **margin** = price − cost. Recording
-a sale (Sales POS) writes a `sales` row (revenue/cost/profit), books an income
-`transactions` row, and decrements the recipe's inventory `stock`.
-
-`api/module-run.js` also accepts `PATCH { id, email, result }` so a user can edit
-and save a module's result/artifact.
-
-### Agent chat table
-
-The floating agent chat (bottom-right robot button) stores its conversation here:
-
-```sql
-create table if not exists public.agent_messages (
-  id          uuid primary key default gen_random_uuid(),
-  created_at  timestamptz not null default now(),
-  email       text not null,
-  role        text not null,          -- user | assistant
-  content     text not null
-);
-create index if not exists agent_messages_email_idx
-  on public.agent_messages (email, created_at asc);
-```
-
-`api/agent-chat.js` stores each message and, if `N8N_CHAT_URL` is set, forwards
-`{ email, message, context }` to n8n and returns `{ reply }`. Without it, a
-graceful stub reply is used.
-
-### Phases, artifact categories, live modules & daily tasks
-
-- **Phases** view walks the 5 NEXUM phases (Analysis → Execution); each module is
-  tagged **Analysis** / **Artifact** / **Live**.
-- **Artifact/Analysis modules** produce a deliverable per run (`module_runs`).
-- **Live modules** (Business Operations, Predictive, Opportunity & Risk,
-  Decision) update continuously — n8n should keep their latest `module_runs.result`
-  fresh rather than waiting for a manual run.
-- **Daily Tasks**: the "Generate today's tasks" button posts a `module_runs` row
-  with `module_key = 'daily-tasks'`. Your Decision agent reads the business data
-  and writes the day's tasks into `company_records` with `kind = 'tasks'`
-  (`data = { title, priority, done, source }`). The UI lists and checks them off.
-
-### Research auto-fill
-
-The **Company Basics** tab has a "research agent" card: the owner enters
-website + location, which POSTs a `module_runs` row with
-`module_key = 'company-research'`. Your n8n research agent picks that up,
-researches the company (products, name, shareholders, financials) and writes
-the findings back into `company_profiles.data` — which then pre-fills the
-profile and every module.
-
-## 3. Environment variables (Vercel → Settings → Environment Variables)
-
-Reuses the same Supabase project as the readiness lead form:
+The platform behind `/platform` is a Vite/React SPA with Vercel functions in
+`/api` and Supabase (Postgres + Auth + pgvector + Edge Functions). AI work is done
+by a **scheduled Claude automation** that reads and writes Supabase through the
+`nexum_*` SQL functions.
 
 ```
-SUPABASE_URL                 https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY    (Supabase → Project Settings → API → service_role)
-SUPABASE_ANON_KEY            (Supabase → Project Settings → API → anon public) — used to verify user tokens
-VITE_SUPABASE_URL            https://xxxx.supabase.co   (browser, build-time)
-VITE_SUPABASE_ANON_KEY       (anon public key)          (browser, build-time)
+Browser ──JWT──► /api/* (Vercel) ──service role──► Supabase Postgres
+                                                     │ triggers → knowledge_chunks
+                                                     │ Edge Function `embed` (gte-small vectors)
+Claude automation (Supabase MCP + nexum-agent skill) ┘ claims jobs, writes results
+UI polls /api → shows status, questions, results, tasks, alerts, chat replies
 ```
 
-## Real login & tenant isolation
+Details: `design/02-agent-data-flow.md`. Decisions: `DECISIONS.md`.
 
-When `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` are set, the platform uses
-**real Supabase Auth** (sign up / sign in / sessions). The sign-up captures name,
-company and industry into the user's `user_metadata`. Without these vars it falls
-back to the previous local mode, so nothing breaks before you configure it.
+## 1. Supabase
 
-**How isolation is enforced:** the browser attaches the signed-in user's access
-token to every `/api/*` call. Each serverless function verifies the token
-server-side (`lib/auth.js` → Supabase `/auth/v1/user`) and **uses the verified
-email**, ignoring any client-supplied email. Requests without a token (e.g. n8n
-server-to-server) fall back to the explicitly-provided email.
+### 1.1 Database (one migration)
 
-**Supabase setup:**
-1. Enable **Email** provider (Authentication → Providers). Optionally turn on
-   "Confirm email".
-2. Add RLS as a defense-in-depth backstop (the API already scopes by verified
-   email; RLS matters if you ever expose the tables to the browser client
-   directly):
+Supabase → SQL editor → run
+`supabase/migrations/20261006000000_nexum_core.sql` (or `supabase db push`).
+It is idempotent and works on a fresh project and on the old tables. It creates:
 
-```sql
-alter table public.company_records   enable row level security;
-alter table public.company_profiles  enable row level security;
-alter table public.module_runs        enable row level security;
-alter table public.agent_messages      enable row level security;
+- tables `company_profiles`, `company_records`, `module_runs`, `agent_messages`,
+  `knowledge_chunks` (pgvector, 384 dims)
+- RLS on all tables (users may only *read* their own rows; all writes go through
+  the API with the service role); old `"own rows"` policies are replaced
+- triggers that keep `knowledge_chunks` in sync (connector secrets, alerts and
+  artifact links are never embedded) and backfill existing data
+- the automation interface `nexum_claim_next`, `nexum_ask`, `nexum_complete`,
+  `nexum_fail`, `nexum_pending_chats`, `nexum_reply_chat`, `nexum_search`,
+  `nexum_records`, `nexum_match_chunks` — executable only by `service_role` /
+  `postgres` (the MCP connection)
 
--- example policy (repeat per table): a user sees only their own rows
-create policy "own rows" on public.company_records
-  for all using (email = auth.jwt() ->> 'email')
-  with check (email = auth.jwt() ->> 'email');
+The `leads` table of the readiness form (READINESS-SETUP.md) also gets RLS enabled.
+
+### 1.2 Embeddings (Edge Function)
+
+```
+supabase functions deploy embed --no-verify-jwt
 ```
 
-> ⚠️ This piece is security-sensitive and could not be tested in-editor. After
-> deploy, verify: sign up → confirm → sign in → data is per-account; a second
-> account cannot see the first's records.
+`supabase/functions/embed` computes embeddings with Supabase's built-in
+`gte-small` model (no external API key) and attaches the most relevant knowledge
+to new jobs and chat messages. It only accepts the service role key (or an
+optional `NEXUM_EMBED_KEY` function secret) as Bearer token.
 
-## 4. Agent execution — n8n OR the Claude agent worker
+Then run `supabase/setup/embed-cron.sql` once (fill in project URL + the
+**service_role** key — under "Legacy API keys" in newer dashboards). It calls the
+function every minute when there is pending work. The API additionally triggers
+it right after each write.
 
-You can run the agents either way:
+### 1.3 Auth
 
-- **Claude Agent SDK worker (recommended)** — see `agent-worker/`. A small Node
-  service runs the agents with the Claude Agent SDK, per-module Skills and the
-  tenant's MCP connectors, then writes results back. It polls `module_runs` (no DB
-  webhook needed) and exposes `POST /chat` (point `N8N_CHAT_URL` at it). See
-  `agent-worker/README.md`.
-- **n8n** — the original workflow approach, below.
+Authentication → Providers:
 
-### n8n — start the agent on insert
+1. **Email**: enable. For production turn **Confirm email ON** (tenants are keyed
+   by email — without confirmation someone could register an address they don't own).
+2. **Google** and **Azure (Microsoft)**: enable with OAuth client ID/secret; add the
+   Supabase callback URL shown there to the Google/Azure app.
+3. URL Configuration: Site URL `https://www.nexum-intelligence.com`; Redirect URLs
+   `https://www.nexum-intelligence.com/platform` and
+   `https://www.nexum-intelligence.com/platform?reset=1` (password reset), plus
+   `http://localhost:5173/**` for local work.
 
-Point n8n at the `module_runs` insert:
+The UI supports sign-up, sign-in, Google, Microsoft, password reset
+("Forgot your password?" → email → set new password) and sign-out.
 
-1. **Supabase → Database → Webhooks** → create a webhook on `INSERT` into
-   `public.module_runs`, targeting your n8n Production webhook URL.
-   (Alternatively use n8n's **Supabase Trigger** node.)
-2. In n8n, read the new row (`module_key`, `inputs`, `email`, …), run the
-   matching agent, and write results back:
-   - set `status = 'running'` when it starts,
-   - set `status = 'done'` and fill `result` when finished (or `'error'`).
-3. The platform's run list reflects `status` on the next page load, so the
-   business owner sees Queued → Running → Completed.
+## 2. Vercel environment variables
 
-## 5. Module ↔ suite ↔ package map
+| Variable | Where from | Used by |
+|---|---|---|
+| `SUPABASE_URL` | Project Settings → API | API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API (service_role, secret!) | API |
+| `SUPABASE_ANON_KEY` | Project Settings → API (anon/publishable) | API — verifies user tokens |
+| `VITE_SUPABASE_URL` | same as `SUPABASE_URL` | browser (build time) |
+| `VITE_SUPABASE_ANON_KEY` | same as `SUPABASE_ANON_KEY` | browser (build time) |
+| `NEXUM_INTERNAL_KEY` | any long random string (`openssl rand -hex 32`) | optional: server-to-server calls with `x-nexum-key` |
 
-- Packages unlock suites cumulatively (Venture Starter → … → Enterprise+).
-- The user's plan is stored in the browser (`nexum_pkg`) for now; wire it to the
-  real purchased plan once billing exists.
-- Everything is data-driven in `src/modules.js` — add a module by adding an
-  object with `fields` (task inputs) and `deliverables`; no other code changes
-  needed.
+Redeploy after changing `VITE_*` (they are baked into the build).
+
+**Important:** once `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set, every
+`/api` call needs a signed-in user (or the internal key). If the `VITE_*`
+variables are missing, the UI falls back to the local demo login and the API
+answers 401 — so set all five together.
+
+## 3. Claude automation
+
+See `claude-desktop/README.md`: connect the Supabase MCP (or connector), add the
+`nexum-agent` skill, create a scheduled task with `claude-desktop/AUTOMATION-PROMPT.md`.
+
+## 4. Acceptance test after deploy (incognito)
+
+1. Sign up with a new address → confirm email → sign in.
+2. Add a supplier/customer → it appears; Supabase: a row in `company_records` and
+   (within a minute) a `knowledge_chunks` row with an embedding.
+3. Start a module (e.g. SWOT) → status "Queued".
+4. Run the automation once → status "Running" → questions or result appear
+   without reloading; a task in Daily Tasks; an alert in the bell; Download .md / PDF work.
+5. Sign in with a second account → none of the first account's data is visible.
+6. `curl https://www.nexum-intelligence.com/api/records?kind=customers&email=<first account>`
+   → **401**.
+7. `curl "$SUPABASE_URL/rest/v1/company_records" -H "apikey: <anon key>"` → `[]`.
+
+## 5. Local development and tests
+
+- `pnpm dev` — app only; without `VITE_*` env the platform runs in demo mode.
+- `pnpm dev:full` — app **and** `/api` functions on one origin (reads `.env.local`).
+- Tests (see `tests/README.md`): `pnpm test` (unit), `pnpm test:db` (SQL, needs
+  Docker), `pnpm test:e2e` (API → Postgres/PostgREST → automation interface).
+
+## 6. Data reference
+
+`company_records.kind`: `customers, products, inventory, suppliers, purchases,
+sales, transactions, invoices, campaigns, staff, tasks, notifications, artifacts,
+connectors`.
+
+- **POS:** `inventory` items carry `unitCost` + `stock`; `products` carry a `recipe`
+  (`[{ itemId, qty }]`) → cost and margin. A sale writes `sales`, books an income
+  `transactions` row and lowers stock.
+- **Finance:** profit = income − expenses − cost of goods sold. Stock purchases
+  (`transactions.category = "Purchasing"`) are shown separately and are not an
+  expense — their cost counts when the goods are sold. Staff cost is the monthly
+  cost of active staff.
+- **tasks** `{ title, priority, done, source, run_id? }`;
+  **notifications** `{ severity, title, message, impact?, link?, read }` (`link` is a
+  view key such as `finance` or `module:predictive`);
+  **artifacts** `{ module_key, title, format:'md', run_id, summary }` — the content
+  lives in `module_runs.result.markdown` and is downloaded as `.md` or printed to PDF.
+- **Connectors:** secrets are masked in API responses (`••••1234`) and kept when a
+  masked value is sent back. They are never embedded or given to the automation.
+  Real connector syncs are not implemented yet.
+- **Plans:** the selected package is still stored in the browser (`nexum_pkg`);
+  server-side plan enforcement comes with billing.

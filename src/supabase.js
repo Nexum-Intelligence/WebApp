@@ -15,6 +15,15 @@ const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const supabaseEnabled = !!(url && anon);
 export const supabase = supabaseEnabled ? createClient(url, anon, { auth: { persistSession: true, autoRefreshToken: true } }) : null;
 
+// Password-reset links land on /platform?reset=1 (see PlatformAuth). Captured before
+// the client cleans up the URL; PASSWORD_RECOVERY covers the implicit-flow variant.
+export const recovery = { active: typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("reset") === "1" || /type=recovery/.test(window.location.hash)) };
+if (supabase) {
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") { recovery.active = true; window.dispatchEvent(new Event("nexum-recovery")); }
+  });
+}
+
 // Attach the signed-in user's access token to every same-origin /api/ request,
 // so the serverless functions can verify who is calling and scope data to them.
 if (typeof window !== "undefined" && supabaseEnabled && !window.__nexumFetchPatched) {

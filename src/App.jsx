@@ -34,7 +34,9 @@ import previewValidateUrl from "./assets/preview-validate.html?url";
 import previewContactUrl from "./assets/preview-contact.html?url";
 import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
 import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, PHASES, INDUSTRIES, packageByKey, collectionByKey, allModules, moduleCategory, industryHint, industryConfig, opLabel, fieldLabel, kpiLabel } from "./modules.js";
-import { supabase, supabaseEnabled } from "./supabase.js";
+import { supabase, supabaseEnabled, recovery } from "./supabase.js";
+import { api, isLocalId, downloadText, printHtml } from "./platformApi.js";
+import { markdownToHtml, resultText } from "./markdown.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -1884,23 +1886,33 @@ function usePlatformUser() {
     if (supabaseEnabled) return null;
     try { return JSON.parse(window.localStorage.getItem("nexum_user") || "null"); } catch (e) { return null; }
   });
+  const [ready, setReady] = useState(!supabaseEnabled);
   useEffect(() => {
     if (!supabaseEnabled) return;
     let sub;
-    supabase.auth.getSession().then(({ data }) => setUser(sessionToUser(data.session)));
-    const res = supabase.auth.onAuthStateChange((_e, session) => setUser(sessionToUser(session)));
+    // keep the same object across token refreshes so effects keyed on the user don't re-run
+    const apply = (session) => setUser((prev) => {
+      const next = sessionToUser(session);
+      if (prev && next && prev.email === next.email && prev.name === next.name && prev.industry === next.industry && prev.company === next.company) return prev;
+      return next;
+    });
+    supabase.auth.getSession().then(({ data }) => { apply(data.session); setReady(true); }).catch(() => setReady(true));
+    const res = supabase.auth.onAuthStateChange((_e, session) => apply(session));
     sub = res && res.data && res.data.subscription;
     return () => { if (sub) sub.unsubscribe(); };
   }, []);
-  const save = (u) => {
-    if (supabaseEnabled) { if (u === null) supabase.auth.signOut(); return; }
+  const save = async (u) => {
+    if (supabaseEnabled) {
+      if (u === null) { try { await supabase.auth.signOut(); } catch (e) {} setUser(null); }
+      return;
+    }
     setUser(u);
     try {
       if (u) window.localStorage.setItem("nexum_user", JSON.stringify(u));
       else window.localStorage.removeItem("nexum_user");
     } catch (e) {}
   };
-  return [user, save];
+  return [user, save, ready];
 }
 
 function PlatformAuth() {
@@ -1910,13 +1922,17 @@ function PlatformAuth() {
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const submit = async (e) => {
     e.preventDefault(); setErr(""); setMsg("");
-    if (!f.email || !f.password) { setErr("Email and password are required."); return; }
+    if (!f.email || (mode !== "reset" && !f.password)) { setErr(mode === "reset" ? "Please enter your email." : "Email and password are required."); return; }
     setBusy(true);
     try {
       if (mode === "signup") {
         if (!f.industry) { setErr("Please pick your industry."); setBusy(false); return; }
-        const { error } = await supabase.auth.signUp({ email: f.email, password: f.password, options: { data: { name: f.name, company: f.company, industry: f.industry } } });
-        if (error) setErr(error.message); else setMsg("Account created — check your email to confirm, then sign in.");
+        const { data, error } = await supabase.auth.signUp({ email: f.email, password: f.password, options: { data: { name: f.name, company: f.company, industry: f.industry }, emailRedirectTo: `${window.location.origin}/platform` } });
+        if (error) setErr(error.message);
+        else if (!(data && data.session)) setMsg("Account created — check your email to confirm, then sign in.");
+      } else if (mode === "reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(f.email, { redirectTo: `${window.location.origin}/platform?reset=1` });
+        if (error) setErr(error.message); else setMsg("If an account exists, we've sent you a link to set a new password.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: f.email, password: f.password });
         if (error) setErr(error.message);
@@ -1934,17 +1950,17 @@ function PlatformAuth() {
   return (
     <div className="plat-auth"><div className="plat-auth-card">
       <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>
-      <h1>{mode === "signup" ? "Create your account" : "Sign in"}</h1>
-      <p>{mode === "signup" ? "Your industry tailors the platform to your business." : "Welcome back."}</p>
-      <div className="signin-provider-list">
+      <h1>{mode === "signup" ? "Create your account" : mode === "reset" ? "Reset password" : "Sign in"}</h1>
+      <p>{mode === "signup" ? "Your industry tailors the platform to your business." : mode === "reset" ? "We'll email you a link to set a new password." : "Welcome back."}</p>
+      {mode !== "reset" && <div className="signin-provider-list">
         <button type="button" onClick={() => oauth("google")}><img src={googleLogo} alt="" /> Continue with Google</button>
         <button type="button" onClick={() => oauth("azure")}><img src={microsoftLogo} alt="" /> Continue with Microsoft</button>
-      </div>
-      <div className="plat-auth-or"><span>or</span></div>
+      </div>}
+      {mode !== "reset" && <div className="plat-auth-or"><span>or</span></div>}
       <form onSubmit={submit}>
         {mode === "signup" && <label>Full name<input value={f.name} onChange={(e) => set("name", e.target.value)} /></label>}
         <label>Email<input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} required /></label>
-        <label>Password<input type="password" value={f.password} onChange={(e) => set("password", e.target.value)} required /></label>
+        {mode !== "reset" && <label>Password<input type="password" value={f.password} onChange={(e) => set("password", e.target.value)} required minLength={mode === "signup" ? 8 : undefined} /></label>}
         {mode === "signup" && <label>Company<input value={f.company} onChange={(e) => set("company", e.target.value)} /></label>}
         {mode === "signup" && <label>Industry
           <select value={f.industry} onChange={(e) => set("industry", e.target.value)} required>
@@ -1955,10 +1971,11 @@ function PlatformAuth() {
         </label>}
         {err && <p className="plat-err">{err}</p>}
         {msg && <p className="plat-saved"><Check size={15} /> {msg}</p>}
-        <button className="primary-button glow-button" type="submit" disabled={busy}>{busy ? "…" : (mode === "signup" ? "Create account" : "Sign in")} <ArrowRight size={18} /></button>
+        <button className="primary-button glow-button" type="submit" disabled={busy}>{busy ? "…" : (mode === "signup" ? "Create account" : mode === "reset" ? "Send reset link" : "Sign in")} <ArrowRight size={18} /></button>
       </form>
-      <button type="button" className="plat-auth-switch" onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setErr(""); setMsg(""); }}>
-        {mode === "signup" ? "Already have an account? Sign in" : "New here? Create an account"}
+      {mode === "signin" && <button type="button" className="plat-auth-switch" onClick={() => { setMode("reset"); setErr(""); setMsg(""); }}>Forgot your password?</button>}
+      <button type="button" className="plat-auth-switch" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setErr(""); setMsg(""); }}>
+        {mode === "signin" ? "New here? Create an account" : "Already have an account? Sign in"}
       </button>
     </div></div>
   );
@@ -2072,10 +2089,9 @@ function CollectionView({ collection, user, label, industryKey }) {
 
   useEffect(() => {
     let ok = true; setLoading(true); setEditing(null);
-    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=${collection.key}`)
-      .then((r) => r.json())
-      .then((d) => { if (ok) setRows(Array.isArray(d.records) ? d.records : []); })
-      .catch(() => {})
+    api(`/api/records?email=${encodeURIComponent(user.email)}&kind=${collection.key}`)
+      .then((d) => { if (ok) { setRows(Array.isArray(d.records) ? d.records : []); setErr(""); } })
+      .catch((e) => { if (ok) setErr(e.message); })
       .finally(() => { if (ok) setLoading(false); });
     return () => { ok = false; };
   }, [collection.key]);
@@ -2093,22 +2109,30 @@ function CollectionView({ collection, user, label, industryKey }) {
       const optimistic = { id: `local-${Date.now()}`, created_at: new Date().toISOString(), kind: collection.key, data: values };
       setRows((r) => [optimistic, ...r]); setEditing(null);
       try {
-        const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: collection.key, data: values }) });
-        const d = await res.json().catch(() => ({}));
+        const d = await api("/api/records", { method: "POST", body: { email: user.email, kind: collection.key, data: values } });
         if (d.record) setRows((r) => [d.record, ...r.filter((x) => x.id !== optimistic.id)]);
-      } catch (e2) {}
+      } catch (e2) {
+        setRows((r) => r.filter((x) => x.id !== optimistic.id));
+        setErr(`Not saved: ${e2.message}`); setValues(values); setEditing("new");
+      }
     } else {
       const id = editing;
+      const before = rows.find((x) => x.id === id);
       setRows((r) => r.map((x) => (x.id === id ? { ...x, data: values } : x))); setEditing(null);
       try {
-        await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, email: user.email, data: values }) });
-      } catch (e2) {}
+        await api("/api/records", { method: "PATCH", body: { id, email: user.email, data: values } });
+      } catch (e2) {
+        if (before) setRows((r) => r.map((x) => (x.id === id ? before : x)));
+        setErr(`Not saved: ${e2.message}`);
+      }
     }
   };
 
   const remove = async (row) => {
+    if (!window.confirm("Delete this entry?")) return;
     setRows((r) => r.filter((x) => x.id !== row.id));
-    try { await fetch(`/api/records?id=${encodeURIComponent(row.id)}&email=${encodeURIComponent(user.email)}`, { method: "DELETE" }); } catch (e) {}
+    try { await api(`/api/records?id=${encodeURIComponent(row.id)}&email=${encodeURIComponent(user.email)}`, { method: "DELETE" }); }
+    catch (e) { setRows((r) => [row, ...r]); setErr(`Not deleted: ${e.message}`); }
   };
 
   const summary = collection.summary(rows.map((r) => r.data || {}));
@@ -2143,6 +2167,7 @@ function CollectionView({ collection, user, label, industryKey }) {
           </form>
         )}
 
+        {err && editing == null && <p className="plat-err">{err}</p>}
         {loading ? (
           <p className="plat-empty">Loading…</p>
         ) : rows.length === 0 ? (
@@ -2324,8 +2349,10 @@ function PosView({ user, label }) {
   const q = Number(qty) || 0;
   const revenue = unitPrice * q, lineCost = unitCost * q, profit = revenue - lineCost;
 
+  const [recording, setRecording] = useState(false);
   const record = async () => {
-    if (!product || q <= 0) return;
+    if (!product || q <= 0 || recording) return;
+    setRecording(true);
     const data = { productId: pid, productName: (product.data || {}).name, qty: q, unitPrice, unitCost, revenue, cost: lineCost, profit, date: new Date().toISOString() };
     const opt = { id: `local-${Date.now()}`, kind: "sales", data };
     setSales((s) => [opt, ...s]); setMsg(`Sale recorded — profit ${money(profit)}.`); window.setTimeout(() => setMsg(""), 5000); setQty("1");
@@ -2337,9 +2364,13 @@ function PosView({ user, label }) {
       for (const line of ((product.data || {}).recipe || [])) {
         const it = inventory.find((i) => i.id === line.itemId); if (!it) continue;
         const newStock = (Number((it.data || {}).stock) || 0) - (Number(line.qty) || 0) * q;
-        await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id, email: user.email, data: { ...(it.data || {}), stock: newStock } }) });
+        const nextData = { ...(it.data || {}), stock: newStock };
+        await api("/api/records", { method: "PATCH", body: { id: it.id, email: user.email, data: nextData } });
+        it.data = nextData; // later lines/sales in this session see the new stock
+        setInventory((inv) => inv.map((x) => (x.id === it.id ? { ...x, data: nextData } : x)));
       }
-    } catch (e) {}
+    } catch (e) { setMsg(`Not fully booked: ${e.message}`); }
+    setRecording(false);
   };
 
   const sRows = sales.map((s) => s.data || {});
@@ -2365,7 +2396,7 @@ function PosView({ user, label }) {
             {products.map((p) => <option key={p.id} value={p.id}>{(p.data || {}).name} · {money(Number((p.data || {}).price) || 0)}</option>)}
           </select>
           <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} min="1" />
-          <button className="plat-start" onClick={record} disabled={!product || q <= 0}>Record sale <ArrowRight size={15} /></button>
+          <button className="plat-start" onClick={record} disabled={!product || q <= 0 || recording}>Record sale <ArrowRight size={15} /></button>
         </div>
         {product && (
           <div className="plat-cost-summary">
@@ -2800,7 +2831,7 @@ function PhasesView({ pkg, goto }) {
   );
 }
 
-function DailyTasksView({ user, onGenerate }) {
+function DailyTasksView({ user, runs = [], onGenerate }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState("");
@@ -2809,6 +2840,9 @@ function DailyTasksView({ user, onGenerate }) {
   const load = () => fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=tasks`)
     .then((r) => r.json()).then((d) => setTasks(Array.isArray(d.records) ? d.records : [])).catch(() => {}).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
+  const daily = runs.find((r) => r.module_key === "daily-tasks");
+  const agentBusy = !!daily && (daily.status === "queued" || daily.status === "running");
+  useEffect(() => { if (daily && daily.status === "done") load(); }, [daily ? `${daily.id}:${daily.status}` : ""]);
 
   const toggle = async (t) => {
     const data = { ...(t.data || {}), done: !(t.data || {}).done };
@@ -2831,7 +2865,7 @@ function DailyTasksView({ user, onGenerate }) {
       if (d.record) setTasks((ts) => [d.record, ...ts.filter((x) => x.id !== optimistic.id)]);
     } catch (e2) {}
   };
-  const generate = async () => { setGen(true); await onGenerate(); setGen(false); window.setTimeout(load, 1500); };
+  const generate = async () => { setGen(true); await onGenerate(); setGen(false); };
 
   const open = tasks.filter((t) => !(t.data || {}).done);
   const done = tasks.filter((t) => (t.data || {}).done);
@@ -2842,7 +2876,7 @@ function DailyTasksView({ user, onGenerate }) {
 
       <div className="plat-card plat-cta-card">
         <div><h3>Today's plan</h3><p>Let the agent read your data and generate today's highest-impact actions.</p></div>
-        <button className="plat-start" onClick={generate} disabled={gen}>{gen ? "Generating…" : "Generate today's tasks"} <ArrowRight size={15} /></button>
+        <button className="plat-start" onClick={generate} disabled={gen || agentBusy}>{gen ? "Starting…" : agentBusy ? "Agent is working…" : "Generate today's tasks"} <ArrowRight size={15} /></button>
       </div>
 
       <div className="plat-card">
@@ -3059,7 +3093,9 @@ function FinanceDashboardView({ user }) {
     return () => { ok = false; };
   }, []);
   const income = tx.filter((r) => (r.data || {}).type === "Income").reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
-  const txExpense = tx.filter((r) => (r.data || {}).type === "Expense").reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
+  const isStock = (r) => (r.data || {}).category === "Purchasing";
+  const txExpense = tx.filter((r) => (r.data || {}).type === "Expense" && !isStock(r)).reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
+  const stockPurchases = tx.filter((r) => (r.data || {}).type === "Expense" && isStock(r)).reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
   const staffCost = staff.filter((r) => (r.data || {}).status === "Active").reduce((a, r) => a + (Number((r.data || {}).salary) || 0), 0);
   const expense = txExpense + staffCost;
   const cogs = sales.reduce((a, r) => a + (Number((r.data || {}).cost) || 0), 0);
@@ -3073,13 +3109,14 @@ function FinanceDashboardView({ user }) {
       <div className="plat-view-head"><h1><Cpu size={22} /> Finance</h1><p>Your live financial picture — calculated from Income &amp; Expenses and POS sales, not entered by hand.</p></div>
       <div className="plat-kpis">{kpis.map((k) => <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span></div>)}</div>
       <div className="plat-card">
-        <h3>Revenue · Expenses · Profit <InfoButton text="Revenue = booked income (POS sales). Expenses = expense entries + active staff cost. Cost of goods from POS. Profit = revenue − expenses − cost of goods." /></h3>
+        <h3>Revenue · Expenses · Profit <InfoButton text="Revenue = booked income. Expenses = expense entries (without stock purchases) + monthly cost of active staff. Cost of goods = cost of what you sold (POS). Stock purchases are shown separately — they count as cost once the goods are sold. Profit = revenue − expenses − cost of goods." /></h3>
         <MiniBars items={[
           { label: "Revenue", value: income, color: "#4ade80" },
           { label: "Expenses", value: expense, color: "#f87171" },
           { label: "Cost of goods", value: cogs, color: "#fbbf24" },
           { label: "Profit", value: profit, color: "#818cf8" },
         ]} />
+        {stockPurchases > 0 && <p className="plat-context-note">Stock purchases (cash out, not yet cost): {money(stockPurchases)}</p>}
         {!loading && tx.length === 0 && sales.length === 0 && <p className="plat-empty">No financial data yet — add entries under Income &amp; Expenses or record sales in POS, and this fills automatically.</p>}
       </div>
     </div>
@@ -3135,35 +3172,76 @@ function CompanySectionView({ section, data, onSave, onResearch, user }) {
   );
 }
 
-function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, user }) {
+const ACTIVE_RUN = new Set(["queued", "running"]);
+
+function runFileName(run) {
+  const base = (run.module_name || run.module_key || "deliverable").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const day = (run.finished_at || run.created_at || new Date().toISOString()).slice(0, 10);
+  return `${base}-${day}.md`;
+}
+
+function ResultActions({ run }) {
+  const text = resultText(run.result);
+  if (!text) return null;
+  return (
+    <>
+      <button type="button" className="plat-ghost" onClick={() => downloadText(runFileName(run), text)}>Download .md</button>
+      <button type="button" className="plat-ghost" onClick={() => printHtml(run.module_name || "Deliverable", markdownToHtml(text))}>PDF</button>
+    </>
+  );
+}
+
+function RunStatusNote({ run }) {
+  if (!run) return null;
+  if (run.status === "error") return <p className="plat-err">The agent could not finish this run{run.error ? `: ${run.error}` : "."} You can regenerate it.</p>;
+  if (run.status === "queued") {
+    const waitingMin = (Date.now() - new Date(run.created_at).getTime()) / 60000;
+    return <p className="plat-context-note">{waitingMin > 10 ? "Queued — your agent picks this up on its next scheduled run." : "Queued — your agent will start shortly. This page updates automatically."}</p>;
+  }
+  if (run.status === "running") return <p className="plat-context-note">Your agent is working on it — this page updates automatically.</p>;
+  return null;
+}
+
+function ModuleView({ module, unlocked, companyFlat, runs, onRun, onRunUpdated, notify, gotoUpgrade, user }) {
   const flatKey = JSON.stringify(companyFlat || {});
   const [values, setValues] = useState(() => prefillFromCompany(module.fields, companyFlat));
   const [err, setErr] = useState("");
   const [sending, setSending] = useState(false);
-  const [resultText, setResultText] = useState("");
+  const [resultDraft, setResultDraft] = useState("");
+  const [editingResult, setEditingResult] = useState(false);
   const [savingResult, setSavingResult] = useState(false);
-  const [savedResult, setSavedResult] = useState(false);
   const [answers, setAnswers] = useState({});
   const [answering, setAnswering] = useState(false);
-  const [answered, setAnswered] = useState(false);
+  const [answerErr, setAnswerErr] = useState("");
 
   const moduleRuns = runs.filter((r) => r.module_key === module.key);
   const isLive = module.type === "live";
   const latest = moduleRuns[0];
+  const finished = moduleRuns.find((r) => r.status === "done" || r.status === "completed");
+  const shown = latest && (latest.status === "done" || latest.status === "completed") ? latest : finished;
+  const shownText = shown ? resultText(shown.result) : "";
+  const busy = latest && ACTIVE_RUN.has(latest.status);
 
-  useEffect(() => { setValues(prefillFromCompany(module.fields, companyFlat)); setErr(""); }, [module.key, flatKey]);
-  useEffect(() => {
-    const r = latest ? latest.result : null;
-    setResultText(r ? (typeof r === "string" ? r : JSON.stringify(r, null, 2)) : "");
-    setSavedResult(false);
-    setAnswers({}); setAnswered(false);
-  }, [latest ? latest.id : "none"]);
+  const inputsDirty = useRef(false);
+  useEffect(() => { inputsDirty.current = false; setValues(prefillFromCompany(module.fields, companyFlat)); setErr(""); }, [module.key]);
+  // profile updates (e.g. after company research) refresh the prefill unless the owner is typing
+  useEffect(() => { if (!inputsDirty.current) setValues(prefillFromCompany(module.fields, companyFlat)); }, [flatKey]);
+  useEffect(() => { setEditingResult(false); setResultDraft(shownText); }, [shown ? `${shown.id}:${shown.updated_at || ""}` : "none"]);
+  useEffect(() => { setAnswers({}); setAnswerErr(""); }, [latest ? latest.id : "none"]);
 
-  const set = (k, v) => setValues((s) => ({ ...s, [k]: v }));
+  const set = (k, v) => { inputsDirty.current = true; setValues((s) => ({ ...s, [k]: v })); };
   const setAnswer = (k, v) => setAnswers((a) => ({ ...a, [k]: v }));
+
   const submitAnswers = async (e) => {
-    e.preventDefault(); setAnswering(true);
-    try { await fetch("/api/module-run", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: latest.id, email: user.email, answers }) }); setAnswered(true); } catch (e2) {}
+    e.preventDefault();
+    const missing = (latest.questions || []).filter((q) => !String(answers[q.key] || "").trim());
+    if (missing.length) { setAnswerErr("Please answer every question — or write “not sure”."); return; }
+    setAnswering(true); setAnswerErr("");
+    try {
+      const d = await api("/api/module-run", { method: "PATCH", body: { id: latest.id, answers } });
+      if (d.run) onRunUpdated(d.run);
+      notify("Thanks — the agent continues with your answers.");
+    } catch (e2) { setAnswerErr(e2.message); }
     setAnswering(false);
   };
 
@@ -3174,14 +3252,21 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
       if (missing.length) { setErr("Please fill in the required fields."); return; }
     }
     setErr(""); setSending(true);
-    await onRun(module, values);
+    const ok = await onRun(module, values);
+    if (!ok) setErr("The module could not be started. Please try again.");
     setSending(false);
   };
 
   const saveResult = async () => {
-    if (!latest || !user) return;
+    if (!shown) return;
     setSavingResult(true);
-    try { await fetch("/api/module-run", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: latest.id, email: user.email, result: resultText }) }); setSavedResult(true); } catch (e) {}
+    try {
+      const d = await api("/api/module-run", { method: "PATCH", body: { id: shown.id, result: resultDraft } });
+      if (d.run) onRunUpdated(d.run);
+      else onRunUpdated({ ...shown, result: { markdown: resultDraft, format: "md", edited: true } });
+      setEditingResult(false);
+      notify("Changes saved.");
+    } catch (e) { notify(e.message, "error"); }
     setSavingResult(false);
   };
 
@@ -3209,24 +3294,41 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
               <div className="plat-result-head"><h3>The agent has a few questions <InfoButton text="Answer these so the agent can produce a sharp, tailored result. Your answers are saved and the agent continues automatically." /></h3><span className="plat-status tone-amber">Needs your input</span></div>
               <form onSubmit={submitAnswers} className="plat-form">
                 {latest.questions.map((qn) => <PlatField key={qn.key} f={{ key: qn.key, label: qn.label, type: qn.type || "text", options: qn.options }} value={answers[qn.key]} onChange={setAnswer} />)}
+                {answerErr && <p className="plat-err plat-full">{answerErr}</p>}
                 <div className="plat-modal-actions plat-full">
-                  {answered && <span className="plat-saved"><Check size={15} /> Thanks — the agent is working on it.</span>}
-                  <button type="submit" className="primary-button glow-button" disabled={answering || answered}>{answering ? "Sending…" : "Submit answers"} <ArrowRight size={18} /></button>
+                  <button type="submit" className="primary-button glow-button" disabled={answering}>{answering ? "Sending…" : "Submit answers"} <ArrowRight size={18} /></button>
                 </div>
               </form>
             </div>
           )}
           <div className="plat-card">
-            <div className="plat-result-head"><h3>{isLive ? "Live result" : "Result"} <InfoButton text="Generated by your agent from your company profile and live business data. You can edit and save any changes." /></h3>{st && <span className={`plat-status tone-${st.tone}`}>{st.label}</span>}</div>
-            {latest ? (
+            <div className="plat-result-head"><h3>{isLive ? "Live result" : "Result"} <InfoButton text="Generated by your agent from your company profile, your live business data and its research. You can edit and save it, or download it as Markdown / PDF." /></h3>{st && <span className={`plat-status tone-${st.tone}`}>{st.label}</span>}</div>
+            {shown && latest && latest !== shown && <RunStatusNote run={latest} />}
+            {shown ? (
               <>
-                <textarea className="plat-result-edit" rows="9" value={resultText} onChange={(e) => { setResultText(e.target.value); setSavedResult(false); }} placeholder="The agent's result appears here — you can edit it and save." />
+                {shown.summary && !editingResult && <p className="plat-result-summary">{shown.summary}</p>}
+                {editingResult ? (
+                  <textarea className="plat-result-edit" rows="16" value={resultDraft} onChange={(e) => setResultDraft(e.target.value)} />
+                ) : (
+                  <div className="plat-md" dangerouslySetInnerHTML={{ __html: markdownToHtml(shownText) }} />
+                )}
                 <div className="plat-modal-actions">
-                  {latest.created_at && <span className="plat-live-updated">Updated {new Date(latest.created_at).toLocaleString()}</span>}
-                  {savedResult && <span className="plat-saved"><Check size={14} /> Saved</span>}
-                  <button className="plat-ghost" onClick={saveResult} disabled={savingResult}>{savingResult ? "Saving…" : "Save changes"}</button>
+                  {(shown.finished_at || shown.created_at) && <span className="plat-live-updated">Updated {new Date(shown.updated_at || shown.finished_at || shown.created_at).toLocaleString()}</span>}
+                  {editingResult ? (
+                    <>
+                      <button className="plat-ghost" onClick={() => { setEditingResult(false); setResultDraft(shownText); }}>Cancel</button>
+                      <button className="plat-start" onClick={saveResult} disabled={savingResult}>{savingResult ? "Saving…" : "Save changes"}</button>
+                    </>
+                  ) : (
+                    <>
+                      <ResultActions run={shown} />
+                      <button className="plat-ghost" onClick={() => setEditingResult(true)}>Edit</button>
+                    </>
+                  )}
                 </div>
               </>
+            ) : latest ? (
+              latest.status === "needs_input" ? <p className="plat-empty">Answer the questions above and the agent finishes the result.</p> : <RunStatusNote run={latest} />
             ) : (
               <p className="plat-empty">{isLive ? "No result yet. Connect your data (Connectors) and this updates automatically — or generate it now below." : "No result yet. Review the inputs below (already filled from your profile) and generate."}</p>
             )}
@@ -3240,7 +3342,7 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
                 {module.fields.map((f) => <PlatField key={f.key} f={f} value={values[f.key]} onChange={set} />)}
                 {err && <p className="plat-err plat-full">{err}</p>}
                 <div className="plat-modal-actions plat-full">
-                  <button type="submit" className="primary-button glow-button" disabled={sending}>{sending ? "Working…" : (isLive ? "Update now" : (latest ? "Regenerate" : "Generate"))} <ArrowRight size={18} /></button>
+                  <button type="submit" className="primary-button glow-button" disabled={sending || busy}>{sending ? "Starting…" : busy ? "Agent is working…" : (isLive ? "Update now" : (latest ? "Regenerate" : "Generate"))} <ArrowRight size={18} /></button>
                 </div>
               </form>
             </details>
@@ -3253,31 +3355,19 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
 
 function DeliverablesView({ runs, goto, user }) {
   const ready = runs.filter((r) => r.status === "done" || r.status === "completed");
-  const inProgress = runs.filter((r) => r.status === "queued" || r.status === "running");
+  const inProgress = runs.filter((r) => ACTIVE_RUN.has(r.status) || r.status === "needs_input");
   const [files, setFiles] = useState([]);
   useEffect(() => {
     if (!user) return;
     let ok = true;
-    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=artifacts`).then((r) => r.json()).then((d) => { if (ok) setFiles(d.records || []); }).catch(() => {});
+    api(`/api/records?email=${encodeURIComponent(user.email)}&kind=artifacts`).then((d) => { if (ok) setFiles(d.records || []); }).catch(() => {});
     return () => { ok = false; };
-  }, []);
+  }, [user, ready.length]);
+  const legacyFiles = files.filter((f) => (f.data || {}).url);
   return (
     <div className="plat-view">
-      <div className="plat-view-head"><h1>Deliverables</h1><p>Results your agents produced. Completed runs appear here; generated artifact files can be downloaded.</p></div>
-      {files.length > 0 && (
-        <div className="plat-card">
-          <h3>Artifact files</h3>
-          <div className="plat-run-list">
-            {files.map((f) => { const d = f.data || {}; return (
-              <div className="plat-run" key={f.id}>
-                <div><b>{d.title}</b><span>{d.created_at ? new Date(d.created_at).toLocaleString() : ""}</span></div>
-                {d.url ? <a className="plat-start" href={d.url} target="_blank" rel="noreferrer">Download <ArrowRight size={15} /></a> : <span className="plat-status tone-amber">No file</span>}
-              </div>
-            ); })}
-          </div>
-        </div>
-      )}
-      {ready.length === 0 && inProgress.length === 0 && (
+      <div className="plat-view-head"><h1>Deliverables</h1><p>Results your agents produced. Open them, edit them, or download them as Markdown or PDF.</p></div>
+      {ready.length === 0 && inProgress.length === 0 && legacyFiles.length === 0 && (
         <div className="plat-card"><p className="plat-empty">Nothing yet. Run a module and its deliverables will land here once the agent finishes.</p></div>
       )}
       {inProgress.length > 0 && (
@@ -3297,21 +3387,39 @@ function DeliverablesView({ runs, goto, user }) {
         </div>
       )}
       {ready.length > 0 && (
-        <div className="plat-deliverable-grid">
-          {ready.map((r) => (
-            <button className="plat-deliverable" key={r.id} onClick={() => goto(`module:${r.module_key}`)}>
-              <span className="plat-status tone-green">Completed</span>
-              <h3>{r.module_name}</h3>
-              <span className="plat-deliverable-date">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ""}</span>
-            </button>
-          ))}
+        <div className="plat-card">
+          <h3>Ready</h3>
+          <div className="plat-run-list">
+            {ready.map((r) => (
+              <div className="plat-run" key={r.id}>
+                <div><b>{r.module_name}</b><span>{r.summary || (r.finished_at || r.created_at ? new Date(r.finished_at || r.created_at).toLocaleString() : "")}</span></div>
+                <div className="plat-run-actions">
+                  <ResultActions run={r} />
+                  <button className="plat-start" onClick={() => goto(`module:${r.module_key}`)}>Open <ArrowRight size={15} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {legacyFiles.length > 0 && (
+        <div className="plat-card">
+          <h3>Files</h3>
+          <div className="plat-run-list">
+            {legacyFiles.map((f) => { const d = f.data || {}; return (
+              <div className="plat-run" key={f.id}>
+                <div><b>{d.title}</b><span>{d.created_at ? new Date(d.created_at).toLocaleString() : ""}</span></div>
+                <a className="plat-start" href={d.url} target="_blank" rel="noreferrer">Download <ArrowRight size={15} /></a>
+              </div>
+            ); })}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function ActivityView({ runs }) {
+function ActivityView({ runs, goto }) {
   return (
     <div className="plat-view">
       <div className="plat-view-head"><h1>Activity</h1><p>Every module run and its current status.</p></div>
@@ -3321,10 +3429,10 @@ function ActivityView({ runs }) {
             {runs.map((r) => {
               const st = RUN_STATUS[r.status] || RUN_STATUS.queued;
               return (
-                <div className="plat-run" key={r.id}>
-                  <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span></div>
+                <button className="plat-run plat-run-btn" key={r.id} onClick={() => goto(`module:${r.module_key}`)}>
+                  <div><b>{r.module_name}</b><span>{r.created_at ? new Date(r.created_at).toLocaleString() : ""}{r.status === "error" && r.error ? ` · ${r.error}` : ""}</span></div>
                   <span className={`plat-status tone-${st.tone}`}>{st.label}</span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -3339,33 +3447,41 @@ function AgentChat({ user, view }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [err, setErr] = useState("");
+  const [waitSince, setWaitSince] = useState(0);
   const bodyRef = useRef(null);
 
-  useEffect(() => {
-    if (!open || loaded) return;
-    fetch(`/api/agent-chat?email=${encodeURIComponent(user.email)}`)
-      .then((r) => r.json()).then((d) => { if (Array.isArray(d.messages)) setMessages(d.messages); })
-      .catch(() => {}).finally(() => setLoaded(true));
-  }, [open]);
+  const load = () => api(`/api/agent-chat?email=${encodeURIComponent(user.email)}`)
+    .then((d) => {
+      setMessages((m) => (Array.isArray(d.messages) && (d.messages.length || !m.some((x) => isLocalId(x.id))) ? d.messages : m));
+      setPending(!!d.pending);
+    })
+    .catch(() => {});
 
-  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [messages, open]);
+  useEffect(() => { if (open) load(); }, [open, user]);
+  // poll while a reply is outstanding
+  useEffect(() => {
+    if (!open || !pending) return;
+    const iv = window.setInterval(load, 4000);
+    return () => window.clearInterval(iv);
+  }, [open, pending]);
+  useEffect(() => { if (!pending) setWaitSince(0); }, [pending]);
+  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [messages, open, pending]);
 
   const send = async (e) => {
     e.preventDefault();
     const text = input.trim(); if (!text || sending) return;
-    setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", content: text }]);
-    setInput(""); setSending(true);
-    let reply = null;
+    setErr(""); setSending(true);
     try {
-      const res = await fetch("/api/agent-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, message: text, context: { view } }) });
-      const d = await res.json().catch(() => ({}));
-      reply = d.reply;
-    } catch (e) {}
-    if (!reply) reply = "Got it — noted. (Once the agent backend is connected I can pull your live data, update records and document actions here.)";
-    setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "assistant", content: reply }]);
+      const d = await api("/api/agent-chat", { method: "POST", body: { email: user.email, message: text, context: { view } } });
+      setMessages((m) => [...m, d.message || { id: `local-${Date.now()}`, role: "user", content: text, status: "pending" }]);
+      setInput(""); setPending(true); setWaitSince(Date.now());
+    } catch (e2) { setErr(e2.message); }
     setSending(false);
   };
+
+  const slow = pending && waitSince && Date.now() - waitSince > 30000;
 
   return (
     <>
@@ -3376,10 +3492,15 @@ function AgentChat({ user, view }) {
         <div className="plat-chat">
           <div className="plat-chat-head"><span className="plat-chat-title"><Bot size={18} /> NEXUM Agent</span><button onClick={() => setOpen(false)} aria-label="Close"><X size={16} /></button></div>
           <div className="plat-chat-body" ref={bodyRef}>
-            {messages.length === 0 && <div className="plat-chat-hint">Ask me anything about your business — I can pull from your data, help you update records, document decisions or answer questions.</div>}
-            {messages.map((m) => <div key={m.id} className={`plat-chat-msg ${m.role}`}>{m.content}</div>)}
-            {sending && <div className="plat-chat-msg assistant plat-chat-typing">…</div>}
+            {messages.length === 0 && <div className="plat-chat-hint">Ask me anything about your business — I answer from your data, your profile and earlier results.</div>}
+            {messages.map((m) => (
+              m.role === "assistant"
+                ? <div key={m.id} className="plat-chat-msg assistant plat-md" dangerouslySetInnerHTML={{ __html: markdownToHtml(m.content) }} />
+                : <div key={m.id} className="plat-chat-msg user">{m.content}</div>
+            ))}
+            {pending && <div className="plat-chat-msg assistant plat-chat-typing">{slow ? "Your agent answers on its next run — you can close the chat, the reply will be here." : "…"}</div>}
           </div>
+          {err && <p className="plat-err plat-chat-err">{err}</p>}
           <form className="plat-chat-input" onSubmit={send}>
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask your agent…" />
             <button type="submit" disabled={sending} aria-label="Send"><ArrowRight size={18} /></button>
@@ -3390,95 +3511,200 @@ function AgentChat({ user, view }) {
   );
 }
 
+function PasswordRecovery() {
+  const [open, setOpen] = useState(() => !!(recovery && recovery.active));
+  const [pw, setPw] = useState("");
+  const [msg, setMsg] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const on = () => setOpen(true);
+    window.addEventListener("nexum-recovery", on);
+    return () => window.removeEventListener("nexum-recovery", on);
+  }, []);
+  if (!open || !supabaseEnabled) return null;
+  const close = () => {
+    recovery.active = false; setOpen(false);
+    try { window.history.replaceState(null, "", "/platform"); } catch (e) {}
+  };
+  const submit = async (e) => {
+    e.preventDefault();
+    if (pw.length < 8) { setErr("Please use at least 8 characters."); return; }
+    setBusy(true); setErr("");
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    if (error) setErr(error.message); else { setMsg("Password updated."); window.setTimeout(close, 1500); }
+    setBusy(false);
+  };
+  return (
+    <div className="plat-modal-backdrop">
+      <form className="plat-card plat-recovery" onSubmit={submit}>
+        <h3>Set a new password</h3>
+        <label>New password<input type="password" value={pw} onChange={(e) => setPw(e.target.value)} minLength={8} required /></label>
+        {err && <p className="plat-err">{err}</p>}
+        {msg && <p className="plat-saved"><Check size={15} /> {msg}</p>}
+        <div className="plat-modal-actions">
+          <button type="button" className="plat-ghost" onClick={close}>Later</button>
+          <button type="submit" className="plat-start" disabled={busy}>{busy ? "…" : "Save password"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function PlatformPage() {
   const { lang } = useI18n();
-  const [user, setUser] = usePlatformUser();
+  const [user, setUser, authReady] = usePlatformUser();
   const [pkgKey, setPkgKey] = useState(() => {
     try { return window.localStorage.getItem("nexum_pkg") || "enterprise-plus"; } catch { return "enterprise-plus"; }
   });
   const [view, setView] = useState("overview");
   const [runs, setRuns] = useState([]);
   const [company, setCompany] = useState({});
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState(null);
   const [navOpen, setNavOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const activeRef = useRef(false);
+  const prevRunsRef = useRef(null);
+  const toastTimer = useRef(0);
 
   const pkg = packageByKey(pkgKey);
   const ind = industryConfig(user && user.industry);
+  const email = user ? user.email : null;
+  activeRef.current = runs.some((r) => ACTIVE_RUN.has(r.status));
 
-  useEffect(() => {
-    if (!user) return;
-    let ok = true;
-    try { const l = JSON.parse(window.localStorage.getItem(`nexum_company_${user.email}`) || "null"); if (l) setCompany(l); } catch (e) {}
-    fetch(`/api/module-run?email=${encodeURIComponent(user.email)}`)
-      .then((r) => r.json()).then((d) => { if (ok && Array.isArray(d.runs)) setRuns(d.runs); }).catch(() => {});
-    fetch(`/api/company?email=${encodeURIComponent(user.email)}`)
-      .then((r) => r.json()).then((d) => { if (ok && d && d.data && Object.keys(d.data).length) setCompany(d.data); }).catch(() => {});
-    return () => { ok = false; };
-  }, [user]);
+  const notify = (text, tone = "ok") => {
+    setToast({ text, tone });
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 6000);
+  };
 
+  // responses for a previous user (signed out while a request was in flight) are dropped
+  const currentEmail = useRef(email);
+  currentEmail.current = email;
+  const loadCompany = () => {
+    const who = email;
+    return api(`/api/company?email=${encodeURIComponent(who)}`)
+      .then((d) => { if (currentEmail.current === who && d && d.data && Object.keys(d.data).length) setCompany(d.data); }).catch(() => {});
+  };
+  const loadNotifications = () => {
+    const who = email;
+    return api(`/api/records?email=${encodeURIComponent(who)}&kind=notifications`)
+      .then((d) => { if (currentEmail.current === who && Array.isArray(d.records)) setNotifications(d.records); }).catch(() => {});
+  };
+
+  // per-user data; everything is reset when the user changes (sign-out / switch)
   useEffect(() => {
-    if (!user) return;
+    setRuns([]); setCompany({}); setNotifications([]); prevRunsRef.current = null; setView("overview");
+    if (!email) return;
     let ok = true;
-    const load = () => fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=notifications`)
-      .then((r) => r.json()).then((d) => { if (ok && Array.isArray(d.records)) setNotifications(d.records); }).catch(() => {});
-    load();
-    const iv = window.setInterval(load, 60000);
+    if (!supabaseEnabled) {
+      try { const l = JSON.parse(window.localStorage.getItem(`nexum_company_${email}`) || "null"); if (l) setCompany(l); } catch (e) {}
+    }
+    loadCompany();
+    let last = 0; let inFlight = false;
+    const loadRuns = () => {
+      if (inFlight) return; // no overlapping polls → no out-of-order statuses
+      inFlight = true;
+      const sentAt = Date.now(); last = sentAt;
+      api(`/api/module-run?email=${encodeURIComponent(email)}`)
+        .then((d) => {
+          if (!ok) return;
+          setRuns((prev) => {
+            const fresh = d.runs || [];
+            const ids = new Set(fresh.map((r) => r.id));
+            // keep local runs and runs started while this request was in flight
+            const keep = prev.filter((r) => !ids.has(r.id) && (isLocalId(r.id) || new Date(r.created_at).getTime() > sentAt - 2000));
+            return [...keep, ...fresh];
+          });
+        })
+        .catch(() => {})
+        .finally(() => { inFlight = false; });
+    };
+    loadRuns();
+    loadNotifications();
+    // runs: every 5 s while an agent is busy, otherwise every 30 s; notifications every 60 s
+    let lastNotes = Date.now();
+    const iv = window.setInterval(() => {
+      if (document.hidden) return;
+      if (activeRef.current || Date.now() - last > 30000) loadRuns();
+      if (Date.now() - lastNotes > 60000) { lastNotes = Date.now(); loadNotifications(); }
+    }, 5000);
     return () => { ok = false; window.clearInterval(iv); };
-  }, [user]);
+  }, [email]);
+
+  // react to agent progress: toast, refresh alerts/profile
+  useEffect(() => {
+    const prev = prevRunsRef.current;
+    prevRunsRef.current = new Map(runs.map((r) => [r.id, r.status]));
+    if (!prev) return;
+    for (const r of runs) {
+      const before = prev.get(r.id);
+      if (!before || before === r.status || !ACTIVE_RUN.has(before)) continue;
+      if (r.status === "done") {
+        notify(`“${r.module_name || r.module_key}” is ready.`);
+        loadNotifications();
+        if (r.module_key === "company-research") loadCompany();
+      } else if (r.status === "needs_input") {
+        notify(`“${r.module_name || r.module_key}” needs your input.`, "warn");
+      } else if (r.status === "error") {
+        notify(`“${r.module_name || r.module_key}” failed — you can regenerate it.`, "error");
+      }
+    }
+  }, [runs]);
 
   const setPackage = (k) => { setPkgKey(k); try { window.localStorage.setItem("nexum_pkg", k); } catch (e) {} };
 
   const persistCompany = (next) => {
     setCompany(next);
-    try { window.localStorage.setItem(`nexum_company_${user.email}`, JSON.stringify(next)); } catch (e) {}
-    fetch("/api/company", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: user.email, name: user.name, company: user.company, data: next }) }).catch(() => {});
+    if (!supabaseEnabled) { try { window.localStorage.setItem(`nexum_company_${email}`, JSON.stringify(next)); } catch (e) {} }
+    api("/api/company", { method: "POST", body: { email, name: user.name, company: user.company, data: next } })
+      .then((d) => { if (d && d.data) setCompany(d.data); })
+      .catch((e) => notify(`Profile not saved: ${e.message}`, "error"));
   };
   const saveCompanySection = (sectionKey, values) => persistCompany({ ...company, [sectionKey]: values });
   const saveCompanyAll = (next) => persistCompany(next);
 
-  const companyFlat = Object.assign({}, ...Object.values(company || {}));
+  const companyFlat = Object.assign({}, ...Object.values(company || {}).map((v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {})));
+
+  const onRunUpdated = (run) => setRuns((rs) => rs.map((x) => (x.id === run.id ? { ...x, ...run } : x)));
 
   const runModule = async (module, values) => {
     const payload = {
-      email: user.email, name: user.name, company: user.company,
+      email, name: user.name, company: user.company,
       packageKey: pkg.key, suiteKey: module.suiteKey, moduleKey: module.key, moduleName: module.name,
-      inputs: { ...values, _company: companyFlat }, lang, source: "platform",
+      inputs: { ...values }, lang, source: "platform", industry: user.industry,
     };
-    let run = null;
     try {
-      const res = await fetch("/api/module-run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await res.json().catch(() => ({}));
-      run = data.run;
-    } catch (e) {}
-    if (!run) run = { id: `local-${Date.now()}`, created_at: new Date().toISOString(), module_key: module.key, module_name: module.name, suite_key: module.suiteKey, status: "queued" };
-    setRuns((r) => [run, ...r.filter((x) => x.id !== run.id)]);
-    setToast(`“${module.name}” started — your agent is now working on it.`);
-    window.setTimeout(() => setToast(""), 6000);
+      const data = await api("/api/module-run", { method: "POST", body: payload });
+      const run = data.run || { id: `local-${Date.now()}`, created_at: new Date().toISOString(), module_key: module.key, module_name: module.name, suite_key: module.suiteKey, status: "queued" };
+      setRuns((r) => [run, ...r.filter((x) => x.id !== run.id)]);
+      notify(`“${module.name}” started — your agent is now working on it.`);
+      return true;
+    } catch (e) {
+      notify(`“${module.name}” could not be started: ${e.message}`, "error");
+      return false;
+    }
   };
 
-  const runResearch = async (inputs) => {
-    await runModule({ key: "company-research", name: "Company Research", suiteKey: "strategy", deliverables: [], fields: [] }, inputs);
-  };
+  const runResearch = async (inputs) => runModule({ key: "company-research", name: "Company Research", suiteKey: "strategy", deliverables: [], fields: [] }, inputs);
 
   const markNoteRead = async (note) => {
     const data = { ...(note.data || {}), read: true };
     setNotifications((ns) => ns.map((x) => (x.id === note.id ? { ...x, data } : x)));
-    try { await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: note.id, email: user.email, data }) }); } catch (e) {}
+    try { await api("/api/records", { method: "PATCH", body: { id: note.id, email, data } }); } catch (e) {}
   };
   const markAllNotesRead = async () => {
     const unread = notifications.filter((n) => !(n.data || {}).read);
     setNotifications((ns) => ns.map((x) => ({ ...x, data: { ...(x.data || {}), read: true } })));
-    for (const n of unread) { try { await fetch("/api/records", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: n.id, email: user.email, data: { ...(n.data || {}), read: true } }) }); } catch (e) {} }
+    for (const n of unread) { try { await api("/api/records", { method: "PATCH", body: { id: n.id, email, data: { ...(n.data || {}), read: true } } }); } catch (e) {} }
   };
 
-  const runTasks = async () => {
-    await runModule({ key: "daily-tasks", name: "Daily Tasks", suiteKey: "intelligence", deliverables: [], fields: [] }, {});
-  };
+  const runTasks = async () => runModule({ key: "daily-tasks", name: "Daily Tasks", suiteKey: "intelligence", deliverables: [], fields: [] }, {});
 
   const goto = (v) => { setView(v); setNavOpen(false); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
+  const signOut = async () => { await setUser(null); };
 
+  if (!authReady) {
+    return (<Shell><main><section className="platform-page"><div className="plat-auth"><p className="plat-empty">Loading…</p></div></section></main></Shell>);
+  }
   if (!user) {
     return (<Shell><main><section className="platform-page">{supabaseEnabled ? <PlatformAuth /> : <PlatformSignIn onSignIn={setUser} />}</section></main></Shell>);
   }
@@ -3488,7 +3714,7 @@ function PlatformPage() {
   let content = null;
   if (view === "overview") content = <OverviewView user={user} pkg={pkg} runs={runs} company={company} goto={goto} notifications={notifications} onNoteRead={markNoteRead} />;
   else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} user={user} />;
-  else if (view === "activity") content = <ActivityView runs={runs} />;
+  else if (view === "activity") content = <ActivityView runs={runs} goto={goto} />;
   else if (view === "connectors") content = <ConnectorsView user={user} />;
   else if (view === "subscription") content = <SubscriptionView pkg={pkg} setPackage={setPackage} />;
   else if (view === "products") content = <ProductsView user={user} label={ind.product} industryKey={user.industry} />;
@@ -3497,17 +3723,17 @@ function PlatformPage() {
   else if (view === "purchasing") content = <PurchasingView user={user} />;
   else if (view === "profile") content = <ProfileView company={company} onSaveAll={saveCompanyAll} onResearch={runResearch} />;
   else if (view === "phases") content = <PhasesView pkg={pkg} goto={goto} />;
-  else if (view === "tasks") content = <DailyTasksView user={user} onGenerate={runTasks} />;
+  else if (view === "tasks") content = <DailyTasksView user={user} runs={runs} onGenerate={runTasks} />;
   else if (view.startsWith("collection:")) {
     const col = collectionByKey(view.slice(11));
     const colLabel = col ? (col.key === "customers" ? ind.customer : col.key === "campaigns" ? "Marketing" : col.name) : "";
-    content = col ? <CollectionView collection={col} user={user} label={colLabel} industryKey={user.industry} /> : null;
+    content = col ? <CollectionView key={col.key} collection={col} user={user} label={colLabel} industryKey={user.industry} /> : null;
   } else if (view.startsWith("company:")) {
     const section = COMPANY_SECTIONS.find((s) => s.key === view.slice(8));
     content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} onResearch={runResearch} user={user} /> : null;
   } else if (view.startsWith("module:")) {
     const mod = allModules().find((m) => m.key === view.slice(7));
-    if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} gotoUpgrade={() => goto("overview")} user={user} />;
+    if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} onRunUpdated={onRunUpdated} notify={notify} gotoUpgrade={() => goto("overview")} user={user} />;
   }
 
   const navItem = (key, label, icon, opts = {}) => {
@@ -3558,18 +3784,19 @@ function PlatformPage() {
 
             <div className="plat-sidebar-foot">
               <div className="plat-plan-mini" onClick={() => goto("subscription")}><span>Plan</span><b>{pkg.name}</b></div>
-              <div className="plat-user"><span>{firstName}</span><button className="plat-ghost plat-signout" onClick={() => setUser(null)}>Sign out</button></div>
+              <div className="plat-user"><span>{firstName}</span><button className="plat-ghost plat-signout" onClick={signOut}>Sign out</button></div>
             </div>
           </aside>
 
           <div className="plat-main">
             <div className="plat-topbar"><NotificationBell notifications={notifications} onRead={markNoteRead} onReadAll={markAllNotesRead} goto={goto} /></div>
-            {toast && <div className="plat-toast"><Check size={16} /> {toast}</div>}
+            {toast && <div className={`plat-toast plat-toast-${toast.tone}`}>{toast.tone === "ok" ? <Check size={16} /> : <span className="plat-toast-dot" />} {toast.text}</div>}
             {content}
           </div>
         </div>
       </main>
       <AgentChat user={user} view={view} />
+      <PasswordRecovery />
     </Shell>
   );
 }

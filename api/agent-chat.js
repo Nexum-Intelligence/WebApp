@@ -1,79 +1,54 @@
-// Vercel Serverless Function — agent chat.
+// Vercel Serverless Function — agent chat (asynchronous).
 //
-// GET  /api/agent-chat?email=..            → { messages: [...] }  (history)
-// POST /api/agent-chat { email, message, context } → stores the user message,
-//        forwards to the agent (n8n) if configured, stores + returns the reply.
+// GET  /api/agent-chat → { messages, pending }   (latest 100, oldest first)
+// POST /api/agent-chat { message, context:{view} } → stores the message as pending
 //
-// Env:
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   store chat in `agent_messages`
-//   N8N_CHAT_URL   (optional) webhook that receives { email, message, context }
-//                  and returns { reply: "..." }. If unset, a graceful stub reply.
+// The Claude automation answers pending messages via nexum_pending_chats() /
+// nexum_reply_chat(); the UI polls GET until the reply appears.
 
-import { buildContext } from "../lib/context.js";
-import { authedEmail } from "../lib/auth.js";
-
-async function store(URL, KEY, row) {
-  try {
-    await fetch(`${URL}/rest/v1/agent_messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: "return=minimal" },
-      body: JSON.stringify(row),
-    });
-  } catch (e) {}
-}
+import { resolveTenant } from "../lib/auth.js";
+import { readBody, fail, rest, kickEmbed, enc } from "../lib/http.js";
 
 export default async function handler(req, res) {
-  const URL = process.env.SUPABASE_URL;
-  const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const N8N = process.env.N8N_CHAT_URL;
-  const authed = await authedEmail(req);
-
-  if (req.method === "GET") {
-    const email = authed || ((req.query && req.query.email) || "");
-    if (!email) { res.status(400).json({ error: "Missing email" }); return; }
-    if (!URL || !KEY) { res.status(200).json({ messages: [] }); return; }
-    try {
-      const q = `${URL}/rest/v1/agent_messages?email=eq.${encodeURIComponent(email)}&order=created_at.asc&select=id,role,content,created_at`;
-      const r = await fetch(q, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } });
-      res.status(200).json({ messages: r.ok ? await r.json() : [] });
-    } catch (e) { res.status(200).json({ messages: [] }); }
-    return;
-  }
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
+  const body = req.method === "POST" ? readBody(req) : {};
+  const t = await resolveTenant(req, (req.query && req.query.email) || body.email);
+  if (!t.email) return fail(res, t.status, t.error);
+  const email = t.email;
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { message = null, context = {} } = body; const email = authed || body.email;
-    if (!email || !message) { res.status(400).json({ error: "Missing email or message" }); return; }
-
-    if (URL && KEY) await store(URL, KEY, { email, role: "user", content: message });
-
-    // Ask the agent (n8n) for a reply.
-    let reply = "";
-    if (N8N) {
-      try {
-        let business = "";
-        try { business = (await buildContext(email)).text; } catch (e) {}
-        const r = await fetch(N8N, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, message, context: { ...context, business } }),
-        });
-        if (r.ok) { const d = await r.json().catch(() => ({})); reply = d.reply || d.output || ""; }
-      } catch (e) {}
-    }
-    if (!reply) {
-      reply = "Got it — I've logged that. Once the agent backend (n8n) is connected I can read your live data, update records and document actions right here.";
+    if (req.method === "GET") {
+      if (t.demo) return res.status(200).json({ messages: [], pending: false });
+      const r = await rest(`agent_messages?email=eq.${enc(email)}&order=created_at.desc&limit=100&select=id,role,content,status,reply_to,created_at`);
+      if (!r.ok) return fail(res, 502, "Could not load messages");
+      const messages = r.data.reverse();
+      return res.status(200).json({ messages, pending: messages.some((m) => m.status === "pending") });
     }
 
-    if (URL && KEY) await store(URL, KEY, { email, role: "assistant", content: reply });
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "GET, POST");
+      return fail(res, 405, "Method not allowed");
+    }
 
-    res.status(200).json({ reply });
+    const message = typeof body.message === "string" ? body.message.trim() : "";
+    if (!message) return fail(res, 400, "Missing message");
+    if (message.length > 4000) return fail(res, 400, "Message too long");
+    const view = body.context && typeof body.context.view === "string" ? body.context.view.slice(0, 80) : null;
+
+    if (t.demo) {
+      return res.status(200).json({ ok: true, stored: false, message: { id: `local-${Date.now()}`, role: "user", content: message, status: "pending", created_at: new Date().toISOString() } });
+    }
+
+    const r = await rest("agent_messages", {
+      method: "POST",
+      body: { email, role: "user", content: message, status: "pending", context: { view } },
+      prefer: "return=representation",
+    });
+    if (!r.ok) return fail(res, 502, "Could not send message");
+    await kickEmbed();
+    const m = r.data[0];
+    return res.status(200).json({ ok: true, stored: true, message: { id: m.id, role: m.role, content: m.content, status: m.status, created_at: m.created_at } });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    console.error("[agent-chat]", e);
+    return fail(res, 500, "Server error");
   }
 }

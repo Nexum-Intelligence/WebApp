@@ -1,61 +1,68 @@
-# NEXUM via Claude Desktop + Supabase MCP
+# NEXUM agents via a Claude automation + Supabase MCP
 
-Run the NEXUM agents straight from **Claude Desktop** by giving it your Supabase
-database over MCP. No separate worker to host — Claude reads the `module_runs`
-queue, produces each deliverable, and writes the result back.
+The platform writes every customer input and job into Supabase. A **scheduled
+Claude task** (Claude Desktop / Cowork scheduled task, or a Claude Code routine)
+connects to the same Supabase project over MCP, works through the queue with the
+`nexum-agent` skill and writes results back. The web UI picks them up
+automatically (it polls every 5 s while a job is open).
 
-Best for **you** working with your business data and running modules on demand.
-(For fully unattended, customer-triggered runs 24/7 you'd still use the headless
-`agent-worker/` — Claude Desktop is interactive, it doesn't poll in the background.)
+```
+Website ─► Supabase (data, queue, vectors) ◄─► Claude automation (skill + MCP)
+   ▲                                                   │
+   └──────────── results, tasks, alerts, chat ◄────────┘
+```
+
+Design and data model: `design/02-agent-data-flow.md`. SQL interface:
+`supabase/migrations/20261006000000_nexum_core.sql` (`nexum_*` functions).
 
 ## 1. Connect Supabase (MCP)
 
-Claude Desktop → **Settings → Developer → Edit Config** — merge in
-`claude_desktop_config.json` from this folder and fill in:
+Use **one** of:
 
-- `--project-ref=YOUR_PROJECT_REF` — Supabase → Project Settings → General → Reference ID.
-- `SUPABASE_ACCESS_TOKEN` — Supabase → Account → **Access Tokens** → generate one.
+- **Supabase connector** in Claude (Settings → Connectors → Supabase), scoped to the
+  NEXUM project, or
+- the local MCP server: merge `claude_desktop_config.json` into Claude Desktop →
+  Settings → Developer → Edit Config, then fill in
+  - `--project-ref` — Supabase → Project Settings → General → Reference ID
+  - `SUPABASE_ACCESS_TOKEN` — Supabase → Account → Access Tokens (create a token
+    just for this, so you can revoke it independently)
 
-Then **restart Claude Desktop**. You should see the `supabase` tools available.
-
-- To let Claude **write results back**, do NOT add `--read-only`.
-- For a safe first test, add `"--read-only"` to the args and only read.
-- Confirm the exact flags on Supabase's MCP docs page (they occasionally change).
+  Restart Claude Desktop. `--project-ref` limits the server to this project and
+  `--features=database` hides unrelated tools. Do **not** add `--read-only` — the
+  automation writes results through the `nexum_*` functions. Check Supabase's MCP
+  docs if a flag has changed.
 
 ## 2. Add the skill
 
-Add the **`nexum-agent`** skill (folder `skills/nexum-agent/` with `SKILL.md`) to
-Claude Desktop's Skills. It tells Claude the data model, the workflow (queue →
-context → deliverable → write back), and every module's deliverables. Refine the
-`SKILL.md` any time.
+Add `skills/nexum-agent/` (the folder with `SKILL.md`) to Claude's skills. It
+contains the interface, the procedure, the deliverable format and the module
+catalog. Improve it — and add dedicated skills per module — over time.
 
-## 3. Run it
+## 3. Create the automation
 
-Open a chat (ideally a **Project** whose instructions say "use the nexum-agent
-skill and the supabase MCP") and prompt, e.g.:
+Create a scheduled task (e.g. every 10 minutes during business hours) with the
+prompt from `AUTOMATION-PROMPT.md`. The task must have the Supabase MCP/connector
+and web search enabled.
 
-- **Process the queue:** "Process the NEXUM module queue: read `module_runs` where
-  status = 'queued', run each with the nexum-agent skill, and write the results
-  back."
-- **One module:** "Run a SWOT analysis for user `owner@acme.com` using their
-  Supabase data, then save it to that run's result."
-- **Daily tasks:** "Generate today's tasks for `owner@acme.com` from their live
-  data and insert them as company_records kind 'tasks'."
-- **Clarify first:** the skill will, when info is missing, write questions to
-  `module_runs.questions` and set status `needs_input` — the web UI then shows them,
-  the owner answers, and you re-run the queue.
+Test first by running the prompt once by hand while a module run is queued in the
+platform.
 
-## Flow
+## What the customer sees
 
-1. Owner clicks "Generate" in the web app → a `module_runs` row (queued).
-2. You (in Claude Desktop) run "process the queue" → Claude reads the data via the
-   Supabase MCP, produces the deliverable, writes `result` + `status='done'` (and
-   tasks / notifications / artifacts as needed).
-3. The web UI shows the result, tasks and alerts — same tables, no change needed.
+| Automation does | Platform shows (without reload) |
+|---|---|
+| `nexum_claim_next` | Status "Running" |
+| `nexum_ask` | Question form in the module, toast "needs your input" |
+| owner answers | job goes back to the queue with `answers` |
+| `nexum_complete` | Rendered result (Markdown, tables), Download .md / PDF, Deliverables card, tasks in Daily Tasks, alert in the bell |
+| `nexum_fail` | Status "Error" with reason, "Regenerate" |
+| `nexum_reply_chat` | Answer in the agent chat |
 
-## Optional: light automation
+## Notes
 
-Claude Desktop won't poll on its own. If you want it to run itself, use a
-**scheduled task** on your machine (or Claude's own scheduling, if available) that
-opens the "process the queue" prompt every N minutes — or run the headless
-`agent-worker/` for true 24/7.
+- Jobs that stay `running` for more than 30 minutes are handed out again
+  (max. 3 attempts, then `error`). Always finish with `nexum_complete`,
+  `nexum_ask` or `nexum_fail`.
+- Several automations can run in parallel — claiming is atomic.
+- Do not run the old `agent-worker/` or an n8n workflow against the same queue at
+  the same time unless you want them to share the work.

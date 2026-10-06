@@ -1,64 +1,54 @@
 // Vercel Serverless Function — Company profile store.
 //
-// GET  /api/company?email=you@company.com → { data: {...sections} }
-// POST /api/company  { email, name, company, data } → upserts the profile.
+// GET  /api/company             → { data: {...sections}, updated_at }
+// POST /api/company { name, company, data } → upserts the profile.
 //
 // The company profile is the shared business context every module/agent reads.
-// Stored in Supabase table `company_profiles` (one row per email).
-//
-// Env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (same project as the rest).
-// Degrades gracefully when unset so the frontend still works.
+// Stored in Supabase table `company_profiles` (one row per email). Sections sent
+// by the client replace the stored sections of the same name; sections the
+// client does not send (e.g. written by the research agent) are kept.
 
-import { authedEmail } from "../lib/auth.js";
+import { resolveTenant } from "../lib/auth.js";
+import { readBody, fail, rest, kickEmbed, enc } from "../lib/http.js";
 
 export default async function handler(req, res) {
-  const SUPA_URL = process.env.SUPABASE_URL;
-  const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const authed = await authedEmail(req);
-
-  if (req.method === "GET") {
-    const email = authed || ((req.query && req.query.email) || "");
-    if (!email) { res.status(400).json({ error: "Missing email" }); return; }
-    if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ data: {} }); return; }
-    try {
-      const q = `${SUPA_URL}/rest/v1/company_profiles?email=eq.${encodeURIComponent(email)}&select=data&limit=1`;
-      const r = await fetch(q, { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` } });
-      const rows = r.ok ? await r.json() : [];
-      res.status(200).json({ data: (rows[0] && rows[0].data) || {} });
-    } catch (e) {
-      res.status(200).json({ data: {}, error: String(e) });
-    }
-    return;
-  }
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
+  const body = req.method === "POST" ? readBody(req) : {};
+  const t = await resolveTenant(req, (req.query && req.query.email) || body.email);
+  if (!t.email) return fail(res, t.status, t.error);
+  const email = t.email;
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { name = null, company = null, data = {} } = body; const email = authed || body.email;
-    if (!email) { res.status(400).json({ error: "Missing email" }); return; }
+    if (req.method === "GET") {
+      if (t.demo) return res.status(200).json({ data: {} });
+      const r = await rest(`company_profiles?email=eq.${enc(email)}&select=data,updated_at&limit=1`);
+      if (!r.ok) return fail(res, 502, "Could not load profile");
+      const row = r.data[0] || {};
+      return res.status(200).json({ data: row.data || {}, updated_at: row.updated_at || null });
+    }
 
-    if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ ok: true, stored: false }); return; }
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "GET, POST");
+      return fail(res, 405, "Method not allowed");
+    }
 
-    // Upsert on the unique `email` column (on_conflict=email).
-    const r = await fetch(`${SUPA_URL}/rest/v1/company_profiles?on_conflict=email`, {
+    const { name = null, company = null, data = {} } = body;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return fail(res, 400, "data must be an object");
+    if (t.demo) return res.status(200).json({ ok: true, stored: false });
+
+    const cur = await rest(`company_profiles?email=eq.${enc(email)}&select=data&limit=1`);
+    if (!cur.ok) return fail(res, 502, "Could not load profile");
+    const merged = { ...((cur.data[0] && cur.data[0].data) || {}), ...data };
+
+    const r = await rest("company_profiles?on_conflict=email", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPA_KEY,
-        Authorization: `Bearer ${SUPA_KEY}`,
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify({ email, name, company, data, updated_at: new Date().toISOString() }),
+      body: { email, name, company, data: merged, updated_at: new Date().toISOString() },
+      prefer: "resolution=merge-duplicates,return=minimal",
     });
-
-    if (!r.ok) { res.status(200).json({ ok: false, stored: false, storeError: await r.text() }); return; }
-    res.status(200).json({ ok: true, stored: true });
+    if (!r.ok) return fail(res, 502, "Could not save profile");
+    await kickEmbed();
+    return res.status(200).json({ ok: true, stored: true, data: merged });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    console.error("[company]", e);
+    return fail(res, 500, "Server error");
   }
 }

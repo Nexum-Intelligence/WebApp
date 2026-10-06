@@ -1,22 +1,25 @@
 // Vercel Serverless Function — structured business context for the agents.
 //
-// GET /api/context?email=you@company.com
-//   → { context: "<formatted text block>", data: { ...profile + KPIs } }
+// GET /api/context → { context: "<formatted text block>", data: { ...profile + KPIs } }
 //
-// n8n calls this and renders `context` into the agent prompt (GYB-style), so the
-// agents reason over the tenant's live business data (finance, sales, inventory,
-// CRM, staff, …) instead of just the static profile.
+// Used by the Overview KPIs. Server-to-server callers send x-nexum-key + ?email=.
 
 import { buildContext } from "../lib/context.js";
-import { authedEmail } from "../lib/auth.js";
+import { resolveTenant } from "../lib/auth.js";
+import { fail } from "../lib/http.js";
 
 export default async function handler(req, res) {
-  const email = (await authedEmail(req)) || ((req.query && req.query.email) || "");
-  if (!email) { res.status(400).json({ error: "Missing email" }); return; }
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    return fail(res, 405, "Method not allowed");
+  }
+  const t = await resolveTenant(req, req.query && req.query.email);
+  if (!t.email) return fail(res, t.status, t.error);
   try {
-    const ctx = await buildContext(email);
-    res.status(200).json({ context: ctx.text, data: ctx.data });
+    const ctx = await buildContext(t.email);
+    return res.status(200).json({ context: ctx.text, data: ctx.data });
   } catch (e) {
-    res.status(200).json({ context: "", data: {}, error: String(e) });
+    console.error("[context]", e);
+    return fail(res, 500, "Could not build context");
   }
 }

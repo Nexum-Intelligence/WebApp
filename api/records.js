@@ -1,78 +1,106 @@
-// Vercel Serverless Function — operational admin records (CRM / POS / Finance / Marketing).
+// Vercel Serverless Function — generic operational records (CRM, POS, finance …).
 //
-// GET    /api/records?email=..&kind=customers          → { records: [...] }
-// POST   /api/records  { email, kind, data }            → insert, returns row
-// PATCH  /api/records  { id, email, data }              → update row
-// DELETE /api/records?id=..&email=..                    → delete row
+// GET    /api/records?kind=customers[&limit=500]      → { records }
+// POST   /api/records { kind, data }                   → { ok, record }
+// PATCH  /api/records { id, data }                     → { ok, record }
+// DELETE /api/records?id=…                             → { ok }
 //
 // One Supabase table `company_records` holds every collection (kind = table key).
-// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Degrades gracefully if unset.
+// The tenant is the verified caller (lib/auth.js). Connector secrets are masked
+// in every response and kept when a masked value is sent back.
 
-import { authedEmail } from "../lib/auth.js";
+import { resolveTenant } from "../lib/auth.js";
+import { readBody, fail, rest, kickEmbed, enc } from "../lib/http.js";
 
-function supa() {
-  return { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY };
+const KIND = /^[a-z][a-z0-9_-]{1,39}$/;
+const SECRET = /(key|token|secret|password)/i;
+const MASK = "••••";
+
+export function maskSecrets(value) {
+  if (Array.isArray(value)) return value.map(maskSecrets);
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = SECRET.test(k) && typeof v === "string" && v ? `${MASK}${v.slice(-4)}` : maskSecrets(v);
+    }
+    return out;
+  }
+  return value;
 }
-function headers(key, extra) {
-  return Object.assign({ "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` }, extra || {});
+
+// Replace masked strings in `next` with the stored originals from `prev`.
+export function unmaskSecrets(next, prev) {
+  if (Array.isArray(next)) return next.map((v, i) => unmaskSecrets(v, Array.isArray(prev) ? prev[i] : undefined));
+  if (next && typeof next === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(next)) out[k] = unmaskSecrets(v, prev && typeof prev === "object" ? prev[k] : undefined);
+    return out;
+  }
+  if (typeof next === "string" && next.startsWith(MASK)) return typeof prev === "string" ? prev : "";
+  return next;
 }
+
+const view = (row) => (row && row.kind === "connectors" ? { ...row, data: maskSecrets(row.data) } : row);
 
 export default async function handler(req, res) {
-  const { url: URL, key: KEY } = supa();
   const q = req.query || {};
-  const authed = await authedEmail(req); // verified caller (else null) — enforces tenant isolation
+  const body = req.method === "GET" || req.method === "DELETE" ? {} : readBody(req);
+  const t = await resolveTenant(req, q.email || body.email);
+  if (!t.email) return fail(res, t.status, t.error);
+  const email = t.email;
 
   try {
     if (req.method === "GET") {
-      const kind = q.kind; const email = authed || q.email;
-      if (!email || !kind) { res.status(400).json({ error: "Missing email or kind" }); return; }
-      if (!URL || !KEY) { res.status(200).json({ records: [] }); return; }
-      const url = `${URL}/rest/v1/company_records?email=eq.${encodeURIComponent(email)}&kind=eq.${encodeURIComponent(kind)}&order=created_at.desc&select=id,created_at,kind,data`;
-      const r = await fetch(url, { headers: headers(KEY) });
-      const rows = r.ok ? await r.json() : [];
-      res.status(200).json({ records: rows });
-      return;
+      const kind = q.kind;
+      if (!KIND.test(kind || "")) return fail(res, 400, "Missing or invalid kind");
+      if (t.demo) return res.status(200).json({ records: [] });
+      const limit = Math.min(Math.max(parseInt(q.limit, 10) || 500, 1), 1000);
+      const r = await rest(`company_records?email=eq.${enc(email)}&kind=eq.${enc(kind)}&order=created_at.desc&limit=${limit}&select=id,created_at,updated_at,kind,data`);
+      if (!r.ok) return fail(res, 502, "Could not load records");
+      return res.status(200).json({ records: r.data.map(view) });
     }
 
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-
     if (req.method === "POST") {
-      const { kind, data = {} } = body; const email = authed || body.email;
-      if (!email || !kind) { res.status(400).json({ error: "Missing email or kind" }); return; }
-      if (!URL || !KEY) { res.status(200).json({ ok: true, stored: false, record: { id: `local-${Date.now()}`, created_at: new Date().toISOString(), kind, data } }); return; }
-      const r = await fetch(`${URL}/rest/v1/company_records`, {
-        method: "POST", headers: headers(KEY, { Prefer: "return=representation" }),
-        body: JSON.stringify({ email, kind, data }),
-      });
-      if (!r.ok) { res.status(200).json({ ok: false, stored: false, storeError: await r.text() }); return; }
-      const rows = await r.json();
-      res.status(200).json({ ok: true, stored: true, record: Array.isArray(rows) ? rows[0] : rows });
-      return;
+      const { kind, data = {} } = body;
+      if (!KIND.test(kind || "")) return fail(res, 400, "Missing or invalid kind");
+      if (!data || typeof data !== "object" || Array.isArray(data)) return fail(res, 400, "data must be an object");
+      if (t.demo) return res.status(200).json({ ok: true, stored: false, record: { id: `local-${Date.now()}`, created_at: new Date().toISOString(), kind, data } });
+      const r = await rest("company_records", { method: "POST", body: { email, kind, data }, prefer: "return=representation" });
+      if (!r.ok) return fail(res, 502, "Could not save record");
+      if (kind !== "connectors") await kickEmbed();
+      return res.status(200).json({ ok: true, stored: true, record: view(r.data[0]) });
     }
 
     if (req.method === "PATCH") {
-      const { id, data = {} } = body; const email = authed || body.email;
-      if (!id || !email) { res.status(400).json({ error: "Missing id or email" }); return; }
-      if (!URL || !KEY) { res.status(200).json({ ok: true, stored: false }); return; }
-      const url = `${URL}/rest/v1/company_records?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}`;
-      const r = await fetch(url, { method: "PATCH", headers: headers(KEY, { Prefer: "return=minimal" }), body: JSON.stringify({ data }) });
-      res.status(200).json({ ok: r.ok, stored: r.ok });
-      return;
+      const { id, data = {} } = body;
+      if (!id) return fail(res, 400, "Missing id");
+      if (!data || typeof data !== "object" || Array.isArray(data)) return fail(res, 400, "data must be an object");
+      if (t.demo || String(id).startsWith("local-")) return res.status(200).json({ ok: true, stored: false });
+      const base = `company_records?id=eq.${enc(id)}&email=eq.${enc(email)}`;
+      let next = data;
+      const cur = await rest(`${base}&select=kind,data`);
+      if (!cur.ok) return fail(res, 502, "Could not load record");
+      if (!cur.data.length) return fail(res, 404, "Record not found");
+      if (cur.data[0].kind === "connectors") next = unmaskSecrets(data, cur.data[0].data);
+      const r = await rest(base, { method: "PATCH", body: { data: next }, prefer: "return=representation" });
+      if (!r.ok) return fail(res, 502, "Could not update record");
+      if (cur.data[0].kind !== "connectors") await kickEmbed();
+      return res.status(200).json({ ok: true, stored: true, record: view(r.data[0]) });
     }
 
     if (req.method === "DELETE") {
-      const { id } = q; const email = authed || q.email;
-      if (!id || !email) { res.status(400).json({ error: "Missing id or email" }); return; }
-      if (!URL || !KEY) { res.status(200).json({ ok: true, stored: false }); return; }
-      const url = `${URL}/rest/v1/company_records?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}`;
-      const r = await fetch(url, { method: "DELETE", headers: headers(KEY, { Prefer: "return=minimal" }) });
-      res.status(200).json({ ok: r.ok });
-      return;
+      const id = q.id;
+      if (!id) return fail(res, 400, "Missing id");
+      if (t.demo || String(id).startsWith("local-")) return res.status(200).json({ ok: true, stored: false });
+      const r = await rest(`company_records?id=eq.${enc(id)}&email=eq.${enc(email)}`, { method: "DELETE", prefer: "return=minimal" });
+      if (!r.ok) return fail(res, 502, "Could not delete record");
+      return res.status(200).json({ ok: true });
     }
 
     res.setHeader("Allow", "GET, POST, PATCH, DELETE");
-    res.status(405).json({ error: "Method not allowed" });
+    return fail(res, 405, "Method not allowed");
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    console.error("[records]", e);
+    return fail(res, 500, "Server error");
   }
 }

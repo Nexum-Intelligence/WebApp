@@ -5,7 +5,7 @@ status: incubating
 priority: high
 owner: workspace
 created: 2026-07-09
-updated: 2026-07-10
+updated: 2026-10-06
 
 summary: >
   Exportierbarer React/Vite-Nachbau der oeffentlichen Framer-App
@@ -37,4 +37,4 @@ links:
   source_site: https://logical-share-233457.framer.app/
   documentation: docs/
 
-next_action: Live im Browser gegen Referenzscreenshots pruefen und verbleibende Pixel-/Motion-Abweichungen feinjustieren.
+next_action: Owner richtet Supabase (Migration, embed-Function, Cron, Auth) und Vercel-Env ein, legt die Claude-Automation an und fuehrt den Abnahmetest aus PLATFORM-SETUP.md Abschnitt 4 durch.

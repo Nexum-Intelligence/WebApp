@@ -19,6 +19,27 @@
 - [x] Word-Briefing `Website Nexum Intelligence.docx` in Hero, About,
   What-We-Build, Work-Prozess und neue Agenten-Unterseiten uebernehmen.
 
+## Plattform (Stand 2026-10-06)
+
+- [x] Mandantentrennung: kein E-Mail-Fallback, RLS, maskierte Connector-Secrets.
+- [x] Supabase-Migration mit Queue, Wissensbasis (pgvector) und `nexum_*`-Automationsschnittstelle.
+- [x] Edge Function `embed` (gte-small) + Cron-Setup.
+- [x] UI: Live-Status per Polling, Rueckfragen, Markdown-Ergebnis, Download .md/PDF,
+  Deliverables, asynchroner Chat, Fehlermeldungen, Passwort-Reset.
+- [x] Finanzlogik: Lagereinkauf nicht doppelt zaehlen; POS-Bestand konsistent.
+- [x] Skill `nexum-agent` + Automations-Prompt fuer Claude.
+- [x] Tests: Unit, SQL, End-to-End (API → DB → Automation → API) und Browser-Durchlauf.
+- [ ] Owner: Migration ausfuehren, `embed` deployen, Cron einrichten, Vercel-Env setzen,
+  Auth-Provider konfigurieren (PLATFORM-SETUP.md 1–2).
+- [ ] Owner: Claude-Automation anlegen (claude-desktop/README.md) und Abnahmetest
+  (PLATFORM-SETUP.md 4) durchfuehren.
+- [ ] Dedizierte Skills fuer business-plan, financial-planning, SWOT, go-to-market, decision.
+- [ ] Billing + serverseitige Plan-Pruefung (aktuell alle Module frei).
+- [ ] Mandantenschluessel von E-Mail auf `user_id` umstellen.
+- [ ] Atomare Buchungen (Verkauf/Wareneingang) als DB-Funktion statt mehrerer API-Aufrufe.
+- [ ] Echte Connector-Synchronisation; Secrets in Supabase Vault.
+- [ ] OAuth-Onboarding: Branche abfragen, wenn sie fehlt.
+
 ## Danach
 
 - [ ] Formular-Backend oder Integrationsziel klaeren.

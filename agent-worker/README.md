@@ -1,5 +1,13 @@
 # NEXUM Agent Worker (Claude Agent SDK + Skills + MCP)
 
+> **Status (2026-10-06): alternative, not the primary runtime.** The platform now
+> uses a scheduled Claude automation with the Supabase MCP and the `nexum_*` SQL
+> interface — see `claude-desktop/README.md` and `design/02-agent-data-flow.md`.
+> Before running this worker in production it needs the fixes listed in
+> DECISIONS.md (atomic claiming via `nexum_claim_next`, no `bypassPermissions`,
+> no global Supabase MCP, auth on `/chat`). It needs `NEXUM_INTERNAL_KEY` to read
+> `/api/context`.
+
 This worker **replaces the n8n workflow layer**. Instead of n8n consuming the
 `module_runs` inserts, this small Node service runs the agents with the
 **Claude Agent SDK**, using per-module **Skills** and the tenant's **MCP**

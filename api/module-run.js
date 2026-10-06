@@ -1,140 +1,112 @@
-// Vercel Serverless Function — Platform module runs.
+// Vercel Serverless Function — platform module runs (the agent job queue).
 //
-// POST  /api/module-run   → inserts a row into Supabase `module_runs`.
-//                            That INSERT is the trigger line that starts the
-//                            agentic workflow in n8n (Supabase DB webhook → n8n).
-// GET   /api/module-run?email=you@company.com → lists that user's runs.
-//
-// Env vars (Vercel → Settings → Environment Variables):
-//   SUPABASE_URL                https://xxxx.supabase.co
-//   SUPABASE_SERVICE_ROLE_KEY   service_role key (server-side only!)
-//
-// If env vars are missing the endpoint degrades gracefully so the UI still works.
+// POST  /api/module-run { moduleKey, moduleName, suiteKey, packageKey, inputs, lang }
+//         → inserts a `module_runs` row (status queued) with a snapshot of the
+//           tenant's business context. The Claude automation picks it up via
+//           nexum_claim_next() (see supabase/migrations, claude-desktop/).
+// GET   /api/module-run            → { runs } (latest 100)
+// PATCH /api/module-run { id, answers }  → answers the agent's questions, re-queues
+// PATCH /api/module-run { id, result }   → saves the owner's edit of a finished result
 
 import { buildContext } from "../lib/context.js";
-import { authedEmail } from "../lib/auth.js";
+import { resolveTenant } from "../lib/auth.js";
+import { readBody, fail, rest, kickEmbed, enc } from "../lib/http.js";
 
-function supa() {
-  return { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY };
-}
+const COLS = "id,created_at,updated_at,module_key,module_name,suite_key,package_key,status,result,summary,questions,error,started_at,finished_at";
 
 export default async function handler(req, res) {
-  const { url: SUPA_URL, key: SUPA_KEY } = supa();
-  const authed = await authedEmail(req);
-
-  // ---- List a user's runs -------------------------------------------------
-  if (req.method === "GET") {
-    const email = authed || ((req.query && req.query.email) || "");
-    if (!email) { res.status(400).json({ error: "Missing email" }); return; }
-    if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ runs: [] }); return; }
-    try {
-      const q =
-        `${SUPA_URL}/rest/v1/module_runs?email=eq.${encodeURIComponent(email)}` +
-        `&order=created_at.desc&select=id,created_at,module_key,module_name,suite_key,package_key,status,result,questions`;
-      const r = await fetch(q, {
-        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
-      });
-      const runs = r.ok ? await r.json() : [];
-      res.status(200).json({ runs });
-    } catch (e) {
-      res.status(200).json({ runs: [], error: String(e) });
-    }
-    return;
-  }
-
-  // ---- Edit a run's result, or answer the agent's open questions ----------
-  if (req.method === "PATCH") {
-    try {
-      const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-      const { id, result, answers } = body; const email = authed || body.email;
-      if (!id || !email) { res.status(400).json({ error: "Missing id or email" }); return; }
-      if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ ok: true, stored: false }); return; }
-      const base = `${SUPA_URL}/rest/v1/module_runs?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}`;
-      const hdr = { "Content-Type": "application/json", apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` };
-
-      let patch;
-      if (answers) {
-        // Merge the owner's answers into inputs and re-queue so the agent resumes.
-        let inputs = {};
-        try {
-          const g = await fetch(`${base}&select=inputs`, { headers: hdr });
-          const rows = g.ok ? await g.json() : [];
-          inputs = (rows[0] && rows[0].inputs) || {};
-        } catch (e) {}
-        patch = { inputs: { ...inputs, answers }, status: "queued" };
-      } else {
-        patch = { result };
-      }
-      const r = await fetch(base, { method: "PATCH", headers: { ...hdr, Prefer: "return=minimal" }, body: JSON.stringify(patch) });
-      res.status(200).json({ ok: r.ok });
-    } catch (e) { res.status(500).json({ error: String(e) }); }
-    return;
-  }
-
-  // ---- Start a module run (the n8n trigger line) --------------------------
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST, PATCH");
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
+  const body = req.method === "GET" ? {} : readBody(req);
+  const t = await resolveTenant(req, (req.query && req.query.email) || body.email);
+  if (!t.email) return fail(res, t.status, t.error);
+  const email = t.email;
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const {
-      name = null, company = null,
-      packageKey = null, suiteKey = null,
-      moduleKey = null, moduleName = null,
-      inputs = {}, lang = null, source = "platform",
-    } = body;
-    const email = authed || body.email;
-
-    if (!email || !moduleKey) {
-      res.status(400).json({ error: "Missing email or moduleKey" });
-      return;
+    if (req.method === "GET") {
+      if (t.demo) return res.status(200).json({ runs: [] });
+      const r = await rest(`module_runs?email=eq.${enc(email)}&order=created_at.desc&limit=100&select=${COLS}`);
+      if (!r.ok) return fail(res, 502, "Could not load runs");
+      return res.status(200).json({ runs: r.data });
     }
 
+    if (req.method === "PATCH") {
+      const { id, result, answers } = body;
+      if (!id) return fail(res, 400, "Missing id");
+      if (t.demo || String(id).startsWith("local-")) return res.status(200).json({ ok: true, stored: false });
+      const base = `module_runs?id=eq.${enc(id)}&email=eq.${enc(email)}`;
+
+      if (answers) {
+        if (typeof answers !== "object" || Array.isArray(answers)) return fail(res, 400, "answers must be an object");
+        const cur = await rest(`${base}&select=inputs,status`);
+        if (!cur.ok) return fail(res, 502, "Could not load run");
+        if (!cur.data.length) return fail(res, 404, "Run not found");
+        if (cur.data[0].status !== "needs_input") return fail(res, 409, "This run is not waiting for answers");
+        const inputs = { ...(cur.data[0].inputs || {}), answers };
+        // status filter makes the transition atomic
+        const r = await rest(`${base}&status=eq.needs_input`, { method: "PATCH", body: { inputs, status: "queued", started_at: null, attempts: 0 }, prefer: `return=representation` });
+        if (!r.ok) return fail(res, 502, "Could not save answers");
+        if (!r.data.length) return fail(res, 409, "This run is not waiting for answers");
+        return res.status(200).json({ ok: true, run: pick(r.data[0]) });
+      }
+
+      if (typeof result !== "string") return fail(res, 400, "Missing result");
+      const r = await rest(`${base}&status=eq.done`, { method: "PATCH", body: { result: { markdown: result, format: "md", edited: true } }, prefer: "return=representation" });
+      if (!r.ok) return fail(res, 502, "Could not save result");
+      if (!r.data.length) return fail(res, 409, "Only finished results can be edited");
+      await kickEmbed();
+      return res.status(200).json({ ok: true, run: pick(r.data[0]) });
+    }
+
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "GET, POST, PATCH");
+      return fail(res, 405, "Method not allowed");
+    }
+
+    const {
+      name = null, company = null, packageKey = null, suiteKey = null,
+      moduleKey = null, moduleName = null, inputs = {}, lang = null, source = "platform", industry = null,
+    } = body;
+    if (!moduleKey || !/^[a-z0-9-]{2,60}$/.test(moduleKey)) return fail(res, 400, "Missing or invalid moduleKey");
+    if (!inputs || typeof inputs !== "object" || Array.isArray(inputs)) return fail(res, 400, "inputs must be an object");
+
+    // the profile is read server-side from company_profiles; never trust a client copy
+    const { _company, _context, answers, ...cleanInputs } = inputs;
     const record = {
-      email, name, company,
-      package_key: packageKey,
-      suite_key: suiteKey,
-      module_key: moduleKey,
-      module_name: moduleName,
-      inputs,
-      status: "queued",
-      lang,
-      source,
+      email, name, company, package_key: packageKey, suite_key: suiteKey,
+      module_key: moduleKey, module_name: moduleName, inputs: cleanInputs,
+      status: "queued", lang, source,
     };
 
-    // Attach the tenant's live structured business context so the agent (n8n)
-    // reasons over real data (finance, sales, inventory, CRM, …), not just inputs.
-    try { const ctx = await buildContext(email); record.inputs = { ...(record.inputs || {}), _context: ctx.text }; } catch (e) {}
-
-    if (!SUPA_URL || !SUPA_KEY) {
-      // No backend configured yet — pretend-accept so the frontend flow works.
-      res.status(200).json({ ok: true, stored: false, run: { ...record, id: `local-${Date.now()}`, created_at: new Date().toISOString() } });
-      return;
+    if (t.demo) {
+      return res.status(200).json({ ok: true, stored: false, run: { ...record, id: `local-${Date.now()}`, created_at: new Date().toISOString() } });
     }
 
-    const r = await fetch(`${SUPA_URL}/rest/v1/module_runs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPA_KEY,
-        Authorization: `Bearer ${SUPA_KEY}`,
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify(record),
-    });
-
-    if (!r.ok) {
-      const storeError = await r.text();
-      res.status(200).json({ ok: false, stored: false, storeError });
-      return;
+    // Snapshot of live KPIs so the agent reasons over real numbers.
+    try {
+      const ctx = await buildContext(email);
+      // industry chosen at sign-up, until the profile says otherwise
+      const ind = typeof industry === "string" ? industry.slice(0, 40) : "";
+      if (ind && !ctx.data.company.industry) {
+        ctx.data.company.industry = ind;
+        ctx.text = `INDUSTRY (from sign-up): ${ind}
+${ctx.text}`;
+      }
+      record.context = { text: ctx.text, data: ctx.data };
+    } catch (e) {
+      console.error("[module-run] context", e);
     }
 
-    const rows = await r.json();
-    res.status(200).json({ ok: true, stored: true, run: Array.isArray(rows) ? rows[0] : rows });
+    const r = await rest("module_runs", { method: "POST", body: record, prefer: "return=representation" });
+    if (!r.ok) return fail(res, 502, "Could not start the module");
+    await kickEmbed();
+    return res.status(200).json({ ok: true, stored: true, run: pick(r.data[0]) });
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    console.error("[module-run]", e);
+    return fail(res, 500, "Server error");
   }
+}
+
+function pick(row) {
+  const out = {};
+  for (const k of COLS.split(",")) out[k] = row[k] === undefined ? null : row[k];
+  return out;
 }

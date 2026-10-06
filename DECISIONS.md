@@ -42,3 +42,41 @@ Der Punktball reagiert nun auf Pointer-Bewegungen. Statt eines statischen
 Partikel-Screenshots wird jede Frame-Projektion nach der 3D-Rotation um eine
 Repulsionszone um den Mauspunkt ergaenzt. Das bildet den beobachteten
 Verdrängungseffekt nach und bleibt ohne externe Shader-Runtime lauffaehig.
+
+## 2026-10-06: Agenten-Runtime = geplante Claude-Automation ueber Supabase (D-2026-10-06)
+
+Die Website schreibt alle Kundendaten und Auftraege nach Supabase; eine geplante
+Claude-Automation (Supabase-MCP + Skill `nexum-agent`) arbeitet die Queue ab und
+schreibt Ergebnisse zurueck. n8n und der gehostete `agent-worker` sind nicht mehr
+die primaere Runtime. Gruende: bessere Ergebnisqualitaet durch Skills, Recherche
+und Rueckfragen; neue Module brauchen nur Skill-Text statt Workflow-Verdrahtung;
+kein eigener Server noetig. Die Automation schreibt ausschliesslich ueber
+`security definer`-Funktionen (`nexum_claim_next`, `nexum_ask`, `nexum_complete`,
+`nexum_fail`, `nexum_reply_chat`), damit Statusuebergaenge atomar und pruefbar
+bleiben. Chat ist dadurch asynchron (Antwort beim naechsten Automationslauf).
+Design: `design/02-agent-data-flow.md`.
+
+## 2026-10-06: Wissensbasis mit pgvector und Supabase-gte-small
+
+Kundendaten, Profilabschnitte und fertige Ergebnisse werden per Trigger in
+`knowledge_chunks` gespiegelt und von der Edge Function `embed` mit `gte-small`
+(384 Dim.) eingebettet — ohne externen Embedding-Anbieter oder API-Key. Die
+Retrieval-Ergebnisse werden beim Auftrag vorab berechnet (`module_runs.retrieved`),
+weil die Automation per SQL keine Query-Embeddings erzeugen kann; fuer freie Suche
+gibt es zusaetzlich Volltextsuche (`nexum_search`).
+
+## 2026-10-06: Mandantentrennung ohne E-Mail-Fallback
+
+`/api` akzeptiert nur noch die E-Mail aus einem verifizierten Supabase-Token,
+Server-zu-Server-Aufrufe nur mit `x-nexum-key` (`NEXUM_INTERNAL_KEY`). Der fruehere
+Fallback auf die vom Client gesendete E-Mail erlaubte Lesen/Aendern fremder
+Mandantendaten und wurde entfernt. RLS ist auf allen Tabellen aktiv (nur Lesen
+eigener Zeilen). Connector-Secrets werden maskiert ausgeliefert und nicht
+eingebettet. Mandantenschluessel bleibt vorerst die E-Mail (E-Mail-Bestaetigung
+in Produktion Pflicht); Umstellung auf `user_id` ist offen.
+
+## 2026-10-06: Lagereinkauf ist kein Aufwand
+
+Wareneingaenge (`transactions.category = "Purchasing"`) zaehlen nicht mehr als
+Ausgabe, weil derselbe Wareneinsatz beim Verkauf als Cost of Goods gebucht wird
+(vorher doppelt gezaehlt). Sie werden separat als "Stock purchases" angezeigt.
