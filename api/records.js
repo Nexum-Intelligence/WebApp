@@ -8,6 +8,8 @@
 // One Supabase table `company_records` holds every collection (kind = table key).
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Degrades gracefully if unset.
 
+import { authedEmail } from "../lib/auth.js";
+
 function supa() {
   return { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY };
 }
@@ -18,10 +20,11 @@ function headers(key, extra) {
 export default async function handler(req, res) {
   const { url: URL, key: KEY } = supa();
   const q = req.query || {};
+  const authed = await authedEmail(req); // verified caller (else null) — enforces tenant isolation
 
   try {
     if (req.method === "GET") {
-      const { email, kind } = q;
+      const kind = q.kind; const email = authed || q.email;
       if (!email || !kind) { res.status(400).json({ error: "Missing email or kind" }); return; }
       if (!URL || !KEY) { res.status(200).json({ records: [] }); return; }
       const url = `${URL}/rest/v1/company_records?email=eq.${encodeURIComponent(email)}&kind=eq.${encodeURIComponent(kind)}&order=created_at.desc&select=id,created_at,kind,data`;
@@ -34,7 +37,7 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
 
     if (req.method === "POST") {
-      const { email, kind, data = {} } = body;
+      const { kind, data = {} } = body; const email = authed || body.email;
       if (!email || !kind) { res.status(400).json({ error: "Missing email or kind" }); return; }
       if (!URL || !KEY) { res.status(200).json({ ok: true, stored: false, record: { id: `local-${Date.now()}`, created_at: new Date().toISOString(), kind, data } }); return; }
       const r = await fetch(`${URL}/rest/v1/company_records`, {
@@ -48,7 +51,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "PATCH") {
-      const { id, email, data = {} } = body;
+      const { id, data = {} } = body; const email = authed || body.email;
       if (!id || !email) { res.status(400).json({ error: "Missing id or email" }); return; }
       if (!URL || !KEY) { res.status(200).json({ ok: true, stored: false }); return; }
       const url = `${URL}/rest/v1/company_records?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}`;
@@ -58,7 +61,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "DELETE") {
-      const { id, email } = q;
+      const { id } = q; const email = authed || q.email;
       if (!id || !email) { res.status(400).json({ error: "Missing id or email" }); return; }
       if (!URL || !KEY) { res.status(200).json({ ok: true, stored: false }); return; }
       const url = `${URL}/rest/v1/company_records?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}`;

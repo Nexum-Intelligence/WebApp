@@ -36,7 +36,8 @@ create table if not exists public.module_runs (
   module_key   text not null,
   module_name  text,
   inputs       jsonb not null default '{}'::jsonb,
-  status       text  not null default 'queued',   -- queued | running | done | error
+  status       text  not null default 'queued',   -- queued | running | needs_input | done | error
+  questions    jsonb,                              -- agent's open questions (clarification loop)
   result       jsonb,                              -- agent writes deliverables here
   lang         text,
   source       text default 'platform'
@@ -92,7 +93,20 @@ create index if not exists company_records_email_kind_idx
 Served by `api/records.js` (GET list, POST insert, PATCH update, DELETE).
 Kinds in use: `customers`, `inventory`, `products`, `sales`, `transactions`,
 `campaigns`, `tasks`, `connectors`, `suppliers`, `purchases`, `staff`,
-`notifications`.
+`notifications`, `artifacts`.
+
+**Artifact files (Supabase Storage):** the agent worker saves each non-live
+deliverable as a Markdown file in a Storage bucket (default `artifacts`) and
+records a link as kind `artifacts` (`data = { module_key, title, format, url,
+run_id }`). The Deliverables tab lists these with a download link. Create a
+public bucket named `artifacts` (Supabase → Storage), or set `ARTIFACTS_BUCKET`.
+For private buckets, switch `getPublicUrl` to `createSignedUrl` in the worker.
+
+**Agent orchestration & research:** the worker runs each module agent with the
+Claude Agent SDK using per-module Skills (`agent-worker/catalog.json` gives every
+module a matched skill), and enables **WebSearch/WebFetch** plus three
+**subagents** (`researcher`, `analyst`, `quality`) so the agent can research,
+self-orchestrate and quality-review before finalising.
 
 **Notifications:** agents (n8n) write rows with `kind = 'notifications'`,
 `data = { severity: "recommendation"|"info"|"warning"|"critical", title,
@@ -158,9 +172,59 @@ Reuses the same Supabase project as the readiness lead form:
 ```
 SUPABASE_URL                 https://xxxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY    (Supabase → Project Settings → API → service_role)
+SUPABASE_ANON_KEY            (Supabase → Project Settings → API → anon public) — used to verify user tokens
+VITE_SUPABASE_URL            https://xxxx.supabase.co   (browser, build-time)
+VITE_SUPABASE_ANON_KEY       (anon public key)          (browser, build-time)
 ```
 
-## 4. n8n — start the agent on insert
+## Real login & tenant isolation
+
+When `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` are set, the platform uses
+**real Supabase Auth** (sign up / sign in / sessions). The sign-up captures name,
+company and industry into the user's `user_metadata`. Without these vars it falls
+back to the previous local mode, so nothing breaks before you configure it.
+
+**How isolation is enforced:** the browser attaches the signed-in user's access
+token to every `/api/*` call. Each serverless function verifies the token
+server-side (`lib/auth.js` → Supabase `/auth/v1/user`) and **uses the verified
+email**, ignoring any client-supplied email. Requests without a token (e.g. n8n
+server-to-server) fall back to the explicitly-provided email.
+
+**Supabase setup:**
+1. Enable **Email** provider (Authentication → Providers). Optionally turn on
+   "Confirm email".
+2. Add RLS as a defense-in-depth backstop (the API already scopes by verified
+   email; RLS matters if you ever expose the tables to the browser client
+   directly):
+
+```sql
+alter table public.company_records   enable row level security;
+alter table public.company_profiles  enable row level security;
+alter table public.module_runs        enable row level security;
+alter table public.agent_messages      enable row level security;
+
+-- example policy (repeat per table): a user sees only their own rows
+create policy "own rows" on public.company_records
+  for all using (email = auth.jwt() ->> 'email')
+  with check (email = auth.jwt() ->> 'email');
+```
+
+> ⚠️ This piece is security-sensitive and could not be tested in-editor. After
+> deploy, verify: sign up → confirm → sign in → data is per-account; a second
+> account cannot see the first's records.
+
+## 4. Agent execution — n8n OR the Claude agent worker
+
+You can run the agents either way:
+
+- **Claude Agent SDK worker (recommended)** — see `agent-worker/`. A small Node
+  service runs the agents with the Claude Agent SDK, per-module Skills and the
+  tenant's MCP connectors, then writes results back. It polls `module_runs` (no DB
+  webhook needed) and exposes `POST /chat` (point `N8N_CHAT_URL` at it). See
+  `agent-worker/README.md`.
+- **n8n** — the original workflow approach, below.
+
+### n8n — start the agent on insert
 
 Point n8n at the `module_runs` insert:
 

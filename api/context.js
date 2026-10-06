@@ -8,9 +8,10 @@
 // CRM, staff, …) instead of just the static profile.
 
 import { buildContext } from "../lib/context.js";
+import { authedEmail } from "../lib/auth.js";
 
 export default async function handler(req, res) {
-  const email = (req.query && req.query.email) || "";
+  const email = (await authedEmail(req)) || ((req.query && req.query.email) || "");
   if (!email) { res.status(400).json({ error: "Missing email" }); return; }
   try {
     const ctx = await buildContext(email);

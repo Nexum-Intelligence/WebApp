@@ -12,7 +12,8 @@
   "dependencies": {
     "vite": "^6.0.5",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "@supabase/supabase-js": "^2.45.4"
   },
   "devDependencies": {}
 }

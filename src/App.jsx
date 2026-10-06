@@ -33,7 +33,8 @@ import previewModuleUrl from "./assets/preview-choose-module.html?url";
 import previewValidateUrl from "./assets/preview-validate.html?url";
 import previewContactUrl from "./assets/preview-contact.html?url";
 import { LanguageProvider, useI18n, LANGS } from "./i18n.jsx";
-import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, PHASES, INDUSTRIES, packageByKey, collectionByKey, allModules, moduleCategory, industryHint, industryConfig, opLabel, fieldLabel } from "./modules.js";
+import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, PHASES, INDUSTRIES, packageByKey, collectionByKey, allModules, moduleCategory, industryHint, industryConfig, opLabel, fieldLabel, kpiLabel } from "./modules.js";
+import { supabase, supabaseEnabled } from "./supabase.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -1866,16 +1867,33 @@ const SUITE_ICONS = {
 const RUN_STATUS = {
   queued: { label: "Queued", tone: "amber" },
   running: { label: "Running", tone: "sky" },
+  needs_input: { label: "Needs your input", tone: "amber" },
   done: { label: "Completed", tone: "green" },
   completed: { label: "Completed", tone: "green" },
   error: { label: "Error", tone: "red" },
 };
 
+function sessionToUser(session) {
+  if (!session || !session.user) return null;
+  const u = session.user; const md = u.user_metadata || {};
+  return { email: u.email, id: u.id, name: md.name || u.email, company: md.company || "", industry: md.industry || "other" };
+}
+
 function usePlatformUser() {
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(window.localStorage.getItem("nexum_user") || "null"); } catch { return null; }
+    if (supabaseEnabled) return null;
+    try { return JSON.parse(window.localStorage.getItem("nexum_user") || "null"); } catch (e) { return null; }
   });
+  useEffect(() => {
+    if (!supabaseEnabled) return;
+    let sub;
+    supabase.auth.getSession().then(({ data }) => setUser(sessionToUser(data.session)));
+    const res = supabase.auth.onAuthStateChange((_e, session) => setUser(sessionToUser(session)));
+    sub = res && res.data && res.data.subscription;
+    return () => { if (sub) sub.unsubscribe(); };
+  }, []);
   const save = (u) => {
+    if (supabaseEnabled) { if (u === null) supabase.auth.signOut(); return; }
     setUser(u);
     try {
       if (u) window.localStorage.setItem("nexum_user", JSON.stringify(u));
@@ -1883,6 +1901,67 @@ function usePlatformUser() {
     } catch (e) {}
   };
   return [user, save];
+}
+
+function PlatformAuth() {
+  const [mode, setMode] = useState("signin");
+  const [f, setF] = useState({ name: "", email: "", password: "", company: "", industry: "" });
+  const [err, setErr] = useState(""); const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const submit = async (e) => {
+    e.preventDefault(); setErr(""); setMsg("");
+    if (!f.email || !f.password) { setErr("Email and password are required."); return; }
+    setBusy(true);
+    try {
+      if (mode === "signup") {
+        if (!f.industry) { setErr("Please pick your industry."); setBusy(false); return; }
+        const { error } = await supabase.auth.signUp({ email: f.email, password: f.password, options: { data: { name: f.name, company: f.company, industry: f.industry } } });
+        if (error) setErr(error.message); else setMsg("Account created — check your email to confirm, then sign in.");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: f.email, password: f.password });
+        if (error) setErr(error.message);
+      }
+    } catch (e2) { setErr(String(e2)); }
+    setBusy(false);
+  };
+  const oauth = async (provider) => {
+    setErr("");
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/platform` } });
+      if (error) setErr(error.message);
+    } catch (e2) { setErr(String(e2)); }
+  };
+  return (
+    <div className="plat-auth"><div className="plat-auth-card">
+      <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>
+      <h1>{mode === "signup" ? "Create your account" : "Sign in"}</h1>
+      <p>{mode === "signup" ? "Your industry tailors the platform to your business." : "Welcome back."}</p>
+      <div className="signin-provider-list">
+        <button type="button" onClick={() => oauth("google")}><img src={googleLogo} alt="" /> Continue with Google</button>
+        <button type="button" onClick={() => oauth("azure")}><img src={microsoftLogo} alt="" /> Continue with Microsoft</button>
+      </div>
+      <div className="plat-auth-or"><span>or</span></div>
+      <form onSubmit={submit}>
+        {mode === "signup" && <label>Full name<input value={f.name} onChange={(e) => set("name", e.target.value)} /></label>}
+        <label>Email<input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} required /></label>
+        <label>Password<input type="password" value={f.password} onChange={(e) => set("password", e.target.value)} required /></label>
+        {mode === "signup" && <label>Company<input value={f.company} onChange={(e) => set("company", e.target.value)} /></label>}
+        {mode === "signup" && <label>Industry
+          <select value={f.industry} onChange={(e) => set("industry", e.target.value)} required>
+            <option value="">— select your industry —</option>
+            {INDUSTRIES.filter((i) => i.key !== "other").map((i) => <option key={i.key} value={i.key}>{i.name}</option>)}
+            <option value="other">Other</option>
+          </select>
+        </label>}
+        {err && <p className="plat-err">{err}</p>}
+        {msg && <p className="plat-saved"><Check size={15} /> {msg}</p>}
+        <button className="primary-button glow-button" type="submit" disabled={busy}>{busy ? "…" : (mode === "signup" ? "Create account" : "Sign in")} <ArrowRight size={18} /></button>
+      </form>
+      <button type="button" className="plat-auth-switch" onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setErr(""); setMsg(""); }}>
+        {mode === "signup" ? "Already have an account? Sign in" : "New here? Create an account"}
+      </button>
+    </div></div>
+  );
 }
 
 function PlatformSignIn({ onSignIn }) {
@@ -2043,7 +2122,7 @@ function CollectionView({ collection, user, label, industryKey }) {
 
       <div className="plat-kpis plat-kpis-3">
         {summary.map((k, idx) => (
-          <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label} <InfoButton text={(collection.kpiInfo && collection.kpiInfo[idx]) || `Live metric from your ${collection.name} data.`} /></span></div>
+          <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{kpiLabel(industryKey, collection.key, idx, k.label)} <InfoButton text={(collection.kpiInfo && collection.kpiInfo[idx]) || `Live metric from your ${title.toLowerCase()} data.`} /></span></div>
         ))}
       </div>
 
@@ -2102,8 +2181,9 @@ function productCost(data, inventory) {
   }, 0);
 }
 
-function ProductsView({ user, label }) {
+function ProductsView({ user, label, industryKey }) {
   const title = label || "Products";
+  const fl = (k, fb) => fieldLabel(industryKey, "products", k, fb);
   const [products, setProducts] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2165,9 +2245,9 @@ function ProductsView({ user, label }) {
         {editing != null && (
           <form onSubmit={save} className="plat-record-form">
             <div className="plat-form">
-              <label>Name<span className="plat-req"> *</span><input value={form.name} onChange={(e) => setF("name", e.target.value)} /></label>
-              <label>Category<input value={form.category} onChange={(e) => setF("category", e.target.value)} /></label>
-              <label>Selling price (€)<input type="number" value={form.price} onChange={(e) => setF("price", e.target.value)} /></label>
+              <label>{fl("name", "Name")}<span className="plat-req"> *</span><input value={form.name} onChange={(e) => setF("name", e.target.value)} /></label>
+              <label>{fl("category", "Category")}<input value={form.category} onChange={(e) => setF("category", e.target.value)} /></label>
+              <label>{fl("price", "Selling price (€)")}<input type="number" value={form.price} onChange={(e) => setF("price", e.target.value)} /></label>
               <label>Status<select value={form.status} onChange={(e) => setF("status", e.target.value)}><option>Active</option><option>Draft</option><option>Archived</option></select></label>
             </div>
 
@@ -2203,7 +2283,7 @@ function ProductsView({ user, label }) {
         {loading ? <p className="plat-empty">Loading…</p> : rows.length === 0 ? <p className="plat-empty">No products yet.</p> : (
           <div className="plat-table-wrap">
             <table className="plat-table">
-              <thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Cost</th><th>Margin</th><th /></tr></thead>
+              <thead><tr><th>{fl("name", "Name")}</th><th>{fl("category", "Category")}</th><th>{fl("price", "Price")}</th><th>Cost</th><th>Margin</th><th /></tr></thead>
               <tbody>
                 {rows.map((r) => { const pr = Number(r.price) || 0; const m = pr - r._cost; const mp = pr > 0 ? Math.round((m / pr) * 100) : 0; return (
                   <tr key={r.id}>
@@ -3063,6 +3143,9 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
   const [resultText, setResultText] = useState("");
   const [savingResult, setSavingResult] = useState(false);
   const [savedResult, setSavedResult] = useState(false);
+  const [answers, setAnswers] = useState({});
+  const [answering, setAnswering] = useState(false);
+  const [answered, setAnswered] = useState(false);
 
   const moduleRuns = runs.filter((r) => r.module_key === module.key);
   const isLive = module.type === "live";
@@ -3073,9 +3156,16 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
     const r = latest ? latest.result : null;
     setResultText(r ? (typeof r === "string" ? r : JSON.stringify(r, null, 2)) : "");
     setSavedResult(false);
+    setAnswers({}); setAnswered(false);
   }, [latest ? latest.id : "none"]);
 
   const set = (k, v) => setValues((s) => ({ ...s, [k]: v }));
+  const setAnswer = (k, v) => setAnswers((a) => ({ ...a, [k]: v }));
+  const submitAnswers = async (e) => {
+    e.preventDefault(); setAnswering(true);
+    try { await fetch("/api/module-run", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: latest.id, email: user.email, answers }) }); setAnswered(true); } catch (e2) {}
+    setAnswering(false);
+  };
 
   const generate = async (e) => {
     if (e) e.preventDefault();
@@ -3114,6 +3204,18 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
         </div>
       ) : (
         <>
+          {latest && latest.status === "needs_input" && Array.isArray(latest.questions) && latest.questions.length > 0 && (
+            <div className="plat-card plat-questions-card">
+              <div className="plat-result-head"><h3>The agent has a few questions <InfoButton text="Answer these so the agent can produce a sharp, tailored result. Your answers are saved and the agent continues automatically." /></h3><span className="plat-status tone-amber">Needs your input</span></div>
+              <form onSubmit={submitAnswers} className="plat-form">
+                {latest.questions.map((qn) => <PlatField key={qn.key} f={{ key: qn.key, label: qn.label, type: qn.type || "text", options: qn.options }} value={answers[qn.key]} onChange={setAnswer} />)}
+                <div className="plat-modal-actions plat-full">
+                  {answered && <span className="plat-saved"><Check size={15} /> Thanks — the agent is working on it.</span>}
+                  <button type="submit" className="primary-button glow-button" disabled={answering || answered}>{answering ? "Sending…" : "Submit answers"} <ArrowRight size={18} /></button>
+                </div>
+              </form>
+            </div>
+          )}
           <div className="plat-card">
             <div className="plat-result-head"><h3>{isLive ? "Live result" : "Result"} <InfoButton text="Generated by your agent from your company profile and live business data. You can edit and save any changes." /></h3>{st && <span className={`plat-status tone-${st.tone}`}>{st.label}</span>}</div>
             {latest ? (
@@ -3149,12 +3251,32 @@ function ModuleView({ module, unlocked, companyFlat, runs, onRun, gotoUpgrade, u
   );
 }
 
-function DeliverablesView({ runs, goto }) {
+function DeliverablesView({ runs, goto, user }) {
   const ready = runs.filter((r) => r.status === "done" || r.status === "completed");
   const inProgress = runs.filter((r) => r.status === "queued" || r.status === "running");
+  const [files, setFiles] = useState([]);
+  useEffect(() => {
+    if (!user) return;
+    let ok = true;
+    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=artifacts`).then((r) => r.json()).then((d) => { if (ok) setFiles(d.records || []); }).catch(() => {});
+    return () => { ok = false; };
+  }, []);
   return (
     <div className="plat-view">
-      <div className="plat-view-head"><h1>Deliverables</h1><p>Results your agents produced. Completed runs appear here as deliverables you can open.</p></div>
+      <div className="plat-view-head"><h1>Deliverables</h1><p>Results your agents produced. Completed runs appear here; generated artifact files can be downloaded.</p></div>
+      {files.length > 0 && (
+        <div className="plat-card">
+          <h3>Artifact files</h3>
+          <div className="plat-run-list">
+            {files.map((f) => { const d = f.data || {}; return (
+              <div className="plat-run" key={f.id}>
+                <div><b>{d.title}</b><span>{d.created_at ? new Date(d.created_at).toLocaleString() : ""}</span></div>
+                {d.url ? <a className="plat-start" href={d.url} target="_blank" rel="noreferrer">Download <ArrowRight size={15} /></a> : <span className="plat-status tone-amber">No file</span>}
+              </div>
+            ); })}
+          </div>
+        </div>
+      )}
       {ready.length === 0 && inProgress.length === 0 && (
         <div className="plat-card"><p className="plat-empty">Nothing yet. Run a module and its deliverables will land here once the agent finishes.</p></div>
       )}
@@ -3358,18 +3480,18 @@ function PlatformPage() {
   const goto = (v) => { setView(v); setNavOpen(false); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
 
   if (!user) {
-    return (<Shell><main><section className="platform-page"><PlatformSignIn onSignIn={setUser} /></section></main></Shell>);
+    return (<Shell><main><section className="platform-page">{supabaseEnabled ? <PlatformAuth /> : <PlatformSignIn onSignIn={setUser} />}</section></main></Shell>);
   }
 
   const firstName = (user.name || "").split(" ")[0] || user.name;
 
   let content = null;
   if (view === "overview") content = <OverviewView user={user} pkg={pkg} runs={runs} company={company} goto={goto} notifications={notifications} onNoteRead={markNoteRead} />;
-  else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} />;
+  else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} user={user} />;
   else if (view === "activity") content = <ActivityView runs={runs} />;
   else if (view === "connectors") content = <ConnectorsView user={user} />;
   else if (view === "subscription") content = <SubscriptionView pkg={pkg} setPackage={setPackage} />;
-  else if (view === "products") content = <ProductsView user={user} label={ind.product} />;
+  else if (view === "products") content = <ProductsView user={user} label={ind.product} industryKey={user.industry} />;
   else if (view === "pos") content = <PosView user={user} label={ind.sale} />;
   else if (view === "finance") content = <FinanceDashboardView user={user} />;
   else if (view === "purchasing") content = <PurchasingView user={user} />;
@@ -3502,10 +3624,10 @@ function PotentialAnalysisPage() {
                 {t.platform.signinText}
               </p>
               <div className="signin-provider-list">
-                <button type="button" onClick={() => setLoginOpen(true)}><img src={googleLogo} alt="" /> {t.platform.google}</button>
-                <button type="button" onClick={() => setLoginOpen(true)}><img src={microsoftLogo} alt="" /> {t.platform.microsoft}</button>
+                <button type="button" onClick={() => navigateTo("/platform")}><img src={googleLogo} alt="" /> {t.platform.google}</button>
+                <button type="button" onClick={() => navigateTo("/platform")}><img src={microsoftLogo} alt="" /> {t.platform.microsoft}</button>
               </div>
-              <form className="signin-inline-form" onSubmit={(event) => { event.preventDefault(); setLoginOpen(true); }}>
+              <form className="signin-inline-form" onSubmit={(event) => { event.preventDefault(); navigateTo("/platform"); }}>
                 <label>
                   {t.platform.email}
                   <input type="email" placeholder="you@company.com" />

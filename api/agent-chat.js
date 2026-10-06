@@ -10,6 +10,7 @@
 //                  and returns { reply: "..." }. If unset, a graceful stub reply.
 
 import { buildContext } from "../lib/context.js";
+import { authedEmail } from "../lib/auth.js";
 
 async function store(URL, KEY, row) {
   try {
@@ -25,9 +26,10 @@ export default async function handler(req, res) {
   const URL = process.env.SUPABASE_URL;
   const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const N8N = process.env.N8N_CHAT_URL;
+  const authed = await authedEmail(req);
 
   if (req.method === "GET") {
-    const email = (req.query && req.query.email) || "";
+    const email = authed || ((req.query && req.query.email) || "");
     if (!email) { res.status(400).json({ error: "Missing email" }); return; }
     if (!URL || !KEY) { res.status(200).json({ messages: [] }); return; }
     try {
@@ -46,7 +48,7 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { email = null, message = null, context = {} } = body;
+    const { message = null, context = {} } = body; const email = authed || body.email;
     if (!email || !message) { res.status(400).json({ error: "Missing email or message" }); return; }
 
     if (URL && KEY) await store(URL, KEY, { email, role: "user", content: message });

@@ -9,12 +9,15 @@
 // Env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (same project as the rest).
 // Degrades gracefully when unset so the frontend still works.
 
+import { authedEmail } from "../lib/auth.js";
+
 export default async function handler(req, res) {
   const SUPA_URL = process.env.SUPABASE_URL;
   const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const authed = await authedEmail(req);
 
   if (req.method === "GET") {
-    const email = (req.query && req.query.email) || "";
+    const email = authed || ((req.query && req.query.email) || "");
     if (!email) { res.status(400).json({ error: "Missing email" }); return; }
     if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ data: {} }); return; }
     try {
@@ -36,7 +39,7 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { email = null, name = null, company = null, data = {} } = body;
+    const { name = null, company = null, data = {} } = body; const email = authed || body.email;
     if (!email) { res.status(400).json({ error: "Missing email" }); return; }
 
     if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ ok: true, stored: false }); return; }

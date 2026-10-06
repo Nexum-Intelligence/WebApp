@@ -12,6 +12,7 @@
 // If env vars are missing the endpoint degrades gracefully so the UI still works.
 
 import { buildContext } from "../lib/context.js";
+import { authedEmail } from "../lib/auth.js";
 
 function supa() {
   return { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY };
@@ -19,16 +20,17 @@ function supa() {
 
 export default async function handler(req, res) {
   const { url: SUPA_URL, key: SUPA_KEY } = supa();
+  const authed = await authedEmail(req);
 
   // ---- List a user's runs -------------------------------------------------
   if (req.method === "GET") {
-    const email = (req.query && req.query.email) || "";
+    const email = authed || ((req.query && req.query.email) || "");
     if (!email) { res.status(400).json({ error: "Missing email" }); return; }
     if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ runs: [] }); return; }
     try {
       const q =
         `${SUPA_URL}/rest/v1/module_runs?email=eq.${encodeURIComponent(email)}` +
-        `&order=created_at.desc&select=id,created_at,module_key,module_name,suite_key,package_key,status`;
+        `&order=created_at.desc&select=id,created_at,module_key,module_name,suite_key,package_key,status,result,questions`;
       const r = await fetch(q, {
         headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
       });
@@ -40,18 +42,30 @@ export default async function handler(req, res) {
     return;
   }
 
-  // ---- Edit a run's result (user adjusts the artifact) --------------------
+  // ---- Edit a run's result, or answer the agent's open questions ----------
   if (req.method === "PATCH") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-      const { id, email, result } = body;
+      const { id, result, answers } = body; const email = authed || body.email;
       if (!id || !email) { res.status(400).json({ error: "Missing id or email" }); return; }
       if (!SUPA_URL || !SUPA_KEY) { res.status(200).json({ ok: true, stored: false }); return; }
-      const r = await fetch(`${SUPA_URL}/rest/v1/module_runs?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Prefer: "return=minimal" },
-        body: JSON.stringify({ result }),
-      });
+      const base = `${SUPA_URL}/rest/v1/module_runs?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}`;
+      const hdr = { "Content-Type": "application/json", apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` };
+
+      let patch;
+      if (answers) {
+        // Merge the owner's answers into inputs and re-queue so the agent resumes.
+        let inputs = {};
+        try {
+          const g = await fetch(`${base}&select=inputs`, { headers: hdr });
+          const rows = g.ok ? await g.json() : [];
+          inputs = (rows[0] && rows[0].inputs) || {};
+        } catch (e) {}
+        patch = { inputs: { ...inputs, answers }, status: "queued" };
+      } else {
+        patch = { result };
+      }
+      const r = await fetch(base, { method: "PATCH", headers: { ...hdr, Prefer: "return=minimal" }, body: JSON.stringify(patch) });
       res.status(200).json({ ok: r.ok });
     } catch (e) { res.status(500).json({ error: String(e) }); }
     return;
@@ -67,11 +81,12 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     const {
-      email = null, name = null, company = null,
+      name = null, company = null,
       packageKey = null, suiteKey = null,
       moduleKey = null, moduleName = null,
       inputs = {}, lang = null, source = "platform",
     } = body;
+    const email = authed || body.email;
 
     if (!email || !moduleKey) {
       res.status(400).json({ error: "Missing email or moduleKey" });

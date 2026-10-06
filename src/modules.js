@@ -789,17 +789,32 @@ export function industryHint(key) {
 // Per-industry field-label overrides: FIELD_OVERRIDES[indKey][collectionKey][fieldKey] = "Label".
 // Fields without an override keep their default label. Extend per industry over time.
 export const FIELD_OVERRIDES = {
-  gastro: { customers: { name: "Guest", company: "Company (optional)", value: "Avg spend (€)", stage: "Guest type" } },
-  hotel: { customers: { name: "Guest", value: "Booking value (€)", stage: "Guest type" } },
-  doctor: { customers: { name: "Patient", company: "Insurance", value: "Case value (€)", stage: "Status" }, staff: { salary: "Monthly cost (€)" } },
-  lawyer: { customers: { name: "Client", value: "Matter value (€)", stage: "Client stage" } },
-  services: { customers: { name: "Client", value: "Contract value (€)" } },
-  digital: { customers: { name: "Account", value: "MRR (€)", stage: "Lifecycle stage" } },
-  artist: { customers: { name: "Collector", value: "Sale value (€)" } },
+  gastro: { customers: { name: "Guest", company: "Company (optional)", value: "Avg spend (€)", stage: "Guest type" }, products: { name: "Dish", category: "Course", price: "Menu price (€)" } },
+  hotel: { customers: { name: "Guest", value: "Booking value (€)", stage: "Guest type" }, products: { name: "Room type", category: "Category", price: "Rate / night (€)" } },
+  doctor: { customers: { name: "Patient", company: "Insurance", value: "Case value (€)", stage: "Status" }, products: { name: "Treatment", category: "Type", price: "Fee (€)" } },
+  lawyer: { customers: { name: "Client", value: "Matter value (€)", stage: "Client stage" }, products: { name: "Service", category: "Practice area", price: "Rate (€)" } },
+  services: { customers: { name: "Client", value: "Contract value (€)" }, products: { name: "Service", category: "Type", price: "Rate (€)" } },
+  digital: { customers: { name: "Account", value: "MRR (€)", stage: "Lifecycle stage" }, products: { name: "Plan", category: "Tier", price: "Price / mo (€)" } },
+  artist: { customers: { name: "Collector", value: "Sale value (€)" }, products: { name: "Work", category: "Medium", price: "Price (€)" } },
 };
 export function fieldLabel(indKey, collectionKey, fieldKey, fallback) {
   const c = FIELD_OVERRIDES[indKey] && FIELD_OVERRIDES[indKey][collectionKey];
   return (c && c[fieldKey]) || fallback;
+}
+
+// Per-industry KPI label overrides: KPI_OVERRIDES[indKey][collectionKey] = [labels by index].
+export const KPI_OVERRIDES = {
+  gastro: { customers: ["Guests", "Regulars", "Avg spend"] },
+  hotel: { customers: ["Guests", "Repeat guests", "Booking value"] },
+  doctor: { customers: ["Patients", "Active", "Case value"] },
+  lawyer: { customers: ["Clients", "Active", "Matter value"] },
+  services: { customers: ["Clients", "Active", "Contract value"] },
+  digital: { customers: ["Accounts", "Paying", "MRR"] },
+  artist: { customers: ["Collectors", "Buyers", "Sales value"] },
+};
+export function kpiLabel(indKey, collectionKey, idx, fallback) {
+  const c = KPI_OVERRIDES[indKey] && KPI_OVERRIDES[indKey][collectionKey];
+  return (c && c[idx]) || fallback;
 }
 
 // Display label for an operations tab under a given industry.

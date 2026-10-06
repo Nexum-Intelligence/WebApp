@@ -4422,7 +4422,15 @@ html[data-lite="1"] .hero-logo-mark {
 .plat-auth-card > p { color: var(--soft); margin: 0 0 20px; }
 .plat-auth-card form { display: flex; flex-direction: column; gap: 14px; }
 .plat-auth-card label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; color: var(--soft); }
-.plat-auth-card button { margin-top: 6px; }
+.plat-auth-card > form button[type="submit"] { margin-top: 6px; }
+.plat-auth-card .signin-provider-list { display: flex; flex-direction: column; gap: 10px; margin: 4px 0; }
+.plat-auth-card .signin-provider-list button { display: flex; align-items: center; justify-content: center; gap: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(129, 140, 248, 0.28); border-radius: 10px; color: #fff; padding: 11px 14px; cursor: pointer; font: inherit; }
+.plat-auth-card .signin-provider-list button:hover { border-color: rgba(129, 140, 248, 0.6); }
+.plat-auth-card .signin-provider-list img { width: 18px; height: 18px; }
+.plat-auth-or { display: flex; align-items: center; text-align: center; color: var(--soft); font-size: 12px; margin: 6px 0; }
+.plat-auth-or span { padding: 0 10px; }
+.plat-auth-or::before, .plat-auth-or::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, 0.1); }
+.plat-auth-switch { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 13px; margin-top: 12px; }
 /* module modal */
 .plat-modal-overlay { position: fixed; inset: 0; background: rgba(4, 5, 12, 0.7); backdrop-filter: blur(4px); display: flex; align-items: flex-start; justify-content: center; padding: 60px 16px; overflow-y: auto; z-index: 120; }
 .plat-modal { position: relative; width: min(640px, 100%); border: 1px solid rgba(129, 140, 248, 0.32); border-radius: 20px; background: linear-gradient(180deg, rgba(19, 20, 38, 0.98), rgba(13, 14, 30, 0.98)); box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6); padding: 28px clamp(20px, 3vw, 32px); }
@@ -4737,3 +4745,4 @@ html[data-lite="1"] .hero-logo-mark {
 .plat-kpi-label .plat-info-btn { vertical-align: middle; }
 .plat-industry-hint { display: flex; align-items: flex-start; gap: 8px; color: #cbd5e1; font-size: 13.5px; line-height: 1.5; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 11px 14px; margin-bottom: 16px; }
 .plat-industry-hint svg { color: #38bdf8; flex: none; margin-top: 2px; }
+.plat-questions-card { border-color: rgba(251, 191, 36, 0.4); background: linear-gradient(180deg, rgba(251, 191, 36, 0.08), rgba(13, 14, 30, 0.7)); }
