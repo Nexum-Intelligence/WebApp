@@ -7,6 +7,9 @@ const psql = (file) => execFileSync("docker", ["exec", "-i", "nexum-pg", "psql",
 
 psql("tests/db/bootstrap.sql");
 for (const f of readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")).sort()) psql(`supabase/migrations/${f}`);
-const out = psql("tests/db/test.sql");
-if (!out.includes("ALL DB TESTS PASSED")) { console.error(out); process.exit(1); }
-console.log("ALL DB TESTS PASSED");
+for (const [file, marker] of [["tests/db/test.sql", "ALL DB TESTS PASSED"], ["tests/db/test_ops.sql", "ALL OPS TESTS PASSED"]]) {
+  let out;
+  try { out = psql(file); } catch (e) { console.error(String(e.stderr || e)); process.exit(1); }
+  if (!out.includes(marker)) { console.error(out); process.exit(1); }
+  console.log(marker);
+}

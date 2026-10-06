@@ -30,7 +30,7 @@ function apiMiddleware() {
             setHeader(k, v) { res.setHeader(k, v); },
             json(o) { res.statusCode = this.statusCode; res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(o)); return this; },
           };
-          await mod.default({ method: req.method, headers: req.headers, query: Object.fromEntries(url.searchParams), body }, shim);
+          await mod.default({ method: req.method, headers: req.headers, query: Object.fromEntries(url.searchParams), body, rawBody: raw }, shim);
           if (!res.writableEnded) res.end();
         } catch (e) {
           console.error(`[api/${m[1]}]`, e);

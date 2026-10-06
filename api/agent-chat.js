@@ -7,12 +7,14 @@
 // nexum_reply_chat(); the UI polls GET until the reply appears.
 
 import { resolveTenant } from "../lib/auth.js";
+import { setActor } from "../lib/actor.js";
 import { readBody, fail, rest, kickEmbed, enc } from "../lib/http.js";
 
 export default async function handler(req, res) {
   const body = req.method === "POST" ? readBody(req) : {};
   const t = await resolveTenant(req, (req.query && req.query.email) || body.email);
   if (!t.email) return fail(res, t.status, t.error);
+  setActor(t.actor);
   const email = t.email;
 
   try {

@@ -714,7 +714,7 @@ export const CONNECTORS = [
   },
   {
     key: "gsheets", name: "Google Sheets", category: "Data", imports: "any table",
-    desc: "Pull rows from a shared spreadsheet.",
+    desc: "Import rows from a sheet shared as “anyone with the link can view”.",
     fields: [{ key: "sheetUrl", label: "Sheet URL", type: "text" }],
   },
   {
@@ -727,8 +727,8 @@ export const CONNECTORS = [
   },
   {
     key: "csv", name: "CSV / Excel", category: "Data", imports: "any table",
-    desc: "Hand off a file URL for a one-off import.",
-    fields: [{ key: "fileUrl", label: "File URL", type: "text" }],
+    desc: "Upload a CSV export (Excel: “Save as CSV”) — columns are matched to your fields automatically.",
+    fields: [],
   },
 ];
 

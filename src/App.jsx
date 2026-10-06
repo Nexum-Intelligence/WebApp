@@ -37,6 +37,9 @@ import { SUITES, PACKAGES, COMPANY_SECTIONS, COLLECTIONS, CONNECTORS, PHASES, IN
 import { supabase, supabaseEnabled, recovery } from "./supabase.js";
 import { api, isLocalId, downloadText, printHtml } from "./platformApi.js";
 import { markdownToHtml, resultText } from "./markdown.js";
+import MonthlyChart from "./MonthlyChart.jsx";
+import { monthlySeries, PERIODS, inPeriod, periodMonths } from "./finance.js";
+import { parseCsv, mapHeaders, rowsToRecords } from "./csv.js";
 
 const PerfContext = React.createContext({ lite: false, setLite: () => {} });
 
@@ -1878,7 +1881,7 @@ const RUN_STATUS = {
 function sessionToUser(session) {
   if (!session || !session.user) return null;
   const u = session.user; const md = u.user_metadata || {};
-  return { email: u.email, id: u.id, name: md.name || u.email, company: md.company || "", industry: md.industry || "other" };
+  return { email: u.email, id: u.id, name: md.name || md.full_name || u.email, company: md.company || "", industry: md.industry || "other", needsOnboarding: !md.industry };
 }
 
 function usePlatformUser() {
@@ -1893,7 +1896,7 @@ function usePlatformUser() {
     // keep the same object across token refreshes so effects keyed on the user don't re-run
     const apply = (session) => setUser((prev) => {
       const next = sessionToUser(session);
-      if (prev && next && prev.email === next.email && prev.name === next.name && prev.industry === next.industry && prev.company === next.company) return prev;
+      if (prev && next && prev.email === next.email && prev.name === next.name && prev.industry === next.industry && prev.company === next.company && prev.needsOnboarding === next.needsOnboarding) return prev;
       return next;
     });
     supabase.auth.getSession().then(({ data }) => { apply(data.session); setReady(true); }).catch(() => setReady(true));
@@ -2353,23 +2356,22 @@ function PosView({ user, label }) {
   const record = async () => {
     if (!product || q <= 0 || recording) return;
     setRecording(true);
-    const data = { productId: pid, productName: (product.data || {}).name, qty: q, unitPrice, unitCost, revenue, cost: lineCost, profit, date: new Date().toISOString() };
-    const opt = { id: `local-${Date.now()}`, kind: "sales", data };
-    setSales((s) => [opt, ...s]); setMsg(`Sale recorded — profit ${money(profit)}.`); window.setTimeout(() => setMsg(""), 5000); setQty("1");
+    // sale + income + stock in one database transaction (/api/ops)
     try {
-      const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: "sales", data }) });
-      const d = await res.json().catch(() => ({})); if (d.record) setSales((s) => [d.record, ...s.filter((x) => x.id !== opt.id)]);
-      // book income + decrement stock
-      await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, kind: "transactions", data: { date: new Date().toISOString().slice(0, 10), type: "Income", category: "Sales", amount: revenue, description: `${q}× ${(product.data || {}).name}` } }) });
-      for (const line of ((product.data || {}).recipe || [])) {
-        const it = inventory.find((i) => i.id === line.itemId); if (!it) continue;
-        const newStock = (Number((it.data || {}).stock) || 0) - (Number(line.qty) || 0) * q;
-        const nextData = { ...(it.data || {}), stock: newStock };
-        await api("/api/records", { method: "PATCH", body: { id: it.id, email: user.email, data: nextData } });
-        it.data = nextData; // later lines/sales in this session see the new stock
-        setInventory((inv) => inv.map((x) => (x.id === it.id ? { ...x, data: nextData } : x)));
-      }
-    } catch (e) { setMsg(`Not fully booked: ${e.message}`); }
+      const d = await api("/api/ops", { method: "POST", body: { action: "sale", productId: pid, qty: q } });
+      setSales((s) => [d.sale, ...s]);
+      const ids = new Set(((product.data || {}).recipe || []).map((l) => l.itemId));
+      if (ids.size) api(`/api/records?email=${encodeURIComponent(user.email)}&kind=inventory`).then((r) => setInventory(r.records || [])).catch(() => {});
+      const low = (d.lowStock || []).map((x) => x.name).join(", ");
+      setMsg(`Sale recorded — profit ${money((d.sale.data || {}).profit)}.${low ? ` Low stock: ${low}.` : ""}`);
+      setQty("1");
+    } catch (e) {
+      if (e.status === 409) { // demo mode without database: show it locally only
+        setSales((s) => [{ id: `local-${Date.now()}`, kind: "sales", data: { productId: pid, productName: (product.data || {}).name, qty: q, unitPrice, unitCost, revenue, cost: lineCost, profit, date: new Date().toISOString() } }, ...s]);
+        setMsg(`Sale recorded locally (demo) — profit ${money(profit)}.`);
+      } else setMsg(`Not booked: ${e.message}`);
+    }
+    window.setTimeout(() => setMsg(""), 6000);
     setRecording(false);
   };
 
@@ -2435,6 +2437,7 @@ function PurchasingView({ user }) {
   const [loading, setLoading] = useState(true);
   const [f, setF] = useState({ supplierId: "", itemId: "", qty: "1", unitCost: "", expected: "" });
   const [msg, setMsg] = useState("");
+  const [receiving, setReceiving] = useState(null);
 
   const load = () => Promise.all([
     fetch(`/api/records?email=${em}&kind=suppliers`).then((r) => r.json()),
@@ -2456,14 +2459,17 @@ function PurchasingView({ user }) {
   };
 
   const receive = async (o) => {
-    const d = o.data || {}; if (d.status === "Received") return;
-    setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, data: { ...d, status: "Received" } } : x)));
+    const d = o.data || {}; if (d.status === "Received" || receiving) return;
+    setReceiving(o.id);
+    // status + stock (+ average cost) + stock purchase in one database transaction (/api/ops)
     try {
-      await fetch("/api/records", { method: "PATCH", headers: H, body: JSON.stringify({ id: o.id, email: user.email, data: { ...d, status: "Received" } }) });
-      if (d.itemId) { const it = inventory.find((x) => x.id === d.itemId); if (it) { const ns = (Number((it.data || {}).stock) || 0) + (Number(d.qty) || 0); await fetch("/api/records", { method: "PATCH", headers: H, body: JSON.stringify({ id: it.id, email: user.email, data: { ...(it.data || {}), stock: ns } }) }); setInventory((inv) => inv.map((x) => (x.id === it.id ? { ...x, data: { ...(x.data || {}), stock: ns } } : x))); } }
-      await fetch("/api/records", { method: "POST", headers: H, body: JSON.stringify({ email: user.email, kind: "transactions", data: { date: new Date().toISOString().slice(0, 10), type: "Expense", category: "Purchasing", amount: (Number(d.qty) || 0) * (Number(d.unitCost) || 0), description: `${d.qty}× ${d.itemName || d.supplier}` } }) });
-    } catch (e) {}
-    setMsg("Received — stock increased and expense booked."); window.setTimeout(() => setMsg(""), 5000);
+      const r = await api("/api/ops", { method: "POST", body: { action: "receive", purchaseId: o.id } });
+      setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, data: r.purchase.data } : x)));
+      if (r.inventory) setInventory((inv) => inv.map((x) => (x.id === r.inventory.id ? { ...x, data: r.inventory.data } : x)));
+      setMsg("Received — stock increased and the purchase booked.");
+    } catch (e) { setMsg(`Not received: ${e.message}`); }
+    setReceiving(null);
+    window.setTimeout(() => setMsg(""), 6000);
   };
   const remove = async (o) => { setOrders((os) => os.filter((x) => x.id !== o.id)); try { await fetch(`/api/records?id=${encodeURIComponent(o.id)}&email=${em}`, { method: "DELETE" }); } catch (e) {} };
 
@@ -2497,7 +2503,7 @@ function PurchasingView({ user }) {
             <tbody>{orders.map((o) => { const d = o.data || {}; return (
               <tr key={o.id}><td>{d.itemName || "—"}</td><td>{d.supplier || "—"}</td><td>{d.qty}</td><td>{money(d.unitCost)}</td>
                 <td><span className={`plat-status tone-${d.status === "Received" ? "green" : d.status === "Cancelled" ? "red" : "amber"}`}>{d.status}</span></td>
-                <td className="plat-row-actions">{d.status !== "Received" && <button onClick={() => receive(o)}>Receive</button>}<button className="plat-del" onClick={() => remove(o)}>Delete</button></td>
+                <td className="plat-row-actions">{d.status !== "Received" && <button onClick={() => receive(o)} disabled={receiving === o.id || isLocalId(o.id)}>{receiving === o.id ? "…" : "Receive"}</button>}<button className="plat-del" onClick={() => remove(o)}>Delete</button></td>
               </tr>
             ); })}</tbody>
           </table></div>
@@ -2601,19 +2607,32 @@ function InvoicesView({ user }) {
   );
 }
 
-function SubscriptionView({ pkg, setPackage }) {
+function SubscriptionView({ pkg, plan, notify }) {
+  const [busy, setBusy] = useState("");
+  const billing = !!(plan && plan.billing);
   const currentIdx = PACKAGES.findIndex((p) => p.key === pkg.key);
+  const buy = async (p, interval) => {
+    setBusy(`${p.key}:${interval}`);
+    try {
+      const d = await api("/api/billing", { method: "POST", body: { packageKey: p.key, interval } });
+      window.location.assign(d.url);
+    } catch (e) { notify(e.message, "error"); setBusy(""); }
+  };
+  const until = plan && plan.current_period_end ? new Date(plan.current_period_end).toLocaleDateString() : null;
   return (
     <div className="plat-view">
       <div className="plat-view-head"><h1>Subscription</h1><p>Your current plan and upgrades. A higher plan unlocks more agent suites.</p></div>
       <div className="plat-card plat-plan-current">
-        <div><span className="outline-pill"><ShieldCheck size={14} /> Current plan</span><h2>{pkg.name}</h2><p className="plat-plan-target">{pkg.target}</p></div>
-        <div className="plat-plan-current-price"><b>{pkg.priceOnce}</b><span>once</span><b>{pkg.priceYear}</b></div>
+        <div>
+          <span className="outline-pill"><ShieldCheck size={14} /> Current plan</span>
+          <h2>{pkg.name}</h2>
+          <p className="plat-plan-target">{!billing ? "Beta — every suite is unlocked while billing is not active yet." : plan.status === "active" ? (until ? `Active until ${until}` : "Active — one-time purchase") : pkg.key === "none" ? "Choose a plan to unlock the agent suites." : `Status: ${plan.status}`}</p>
+        </div>
+        {pkg.priceOnce && <div className="plat-plan-current-price"><b>{pkg.priceOnce}</b><span>once</span><b>{pkg.priceYear}</b></div>}
       </div>
       <div className="plat-plan-grid">
         {PACKAGES.map((p, i) => {
           const isCurrent = p.key === pkg.key;
-          const label = isCurrent ? "Current plan" : i > currentIdx ? "Upgrade" : "Switch";
           return (
             <div className={`plat-plan-card ${isCurrent ? "is-current" : ""}`} key={p.key}>
               <h3>{p.name}</h3>
@@ -2623,27 +2642,48 @@ function SubscriptionView({ pkg, setPackage }) {
               <ul className="plat-plan-suites">
                 {p.suites.filter((s) => s !== "foundation").map((sk) => { const s = SUITES.find((x) => x.key === sk); return <li key={sk}><Check size={13} /> {s ? s.name : sk}</li>; })}
               </ul>
-              <button className={`plat-start ${isCurrent ? "is-locked" : ""}`} disabled={isCurrent} onClick={() => setPackage(p.key)}>{label}{!isCurrent && <ArrowRight size={15} />}</button>
+              {isCurrent ? <button className="plat-start is-locked" disabled>Current plan</button> : billing ? (
+                <div className="plat-plan-buy">
+                  <button className="plat-start" disabled={!!busy} onClick={() => buy(p, "once")}>{busy === `${p.key}:once` ? "…" : `${i > currentIdx ? "Upgrade" : "Switch"} · once`}</button>
+                  <button className="plat-ghost" disabled={!!busy} onClick={() => buy(p, "year")}>{busy === `${p.key}:year` ? "…" : "Yearly"}</button>
+                </div>
+              ) : <button className="plat-start is-locked" disabled>Included in beta</button>}
             </div>
           );
         })}
       </div>
-      <p className="plat-empty">Selecting a plan unlocks its suites immediately. Secure checkout &amp; billing would run here.</p>
+      <p className="plat-empty">{billing ? "Secure checkout by Stripe. Your plan is activated automatically after payment." : "Billing starts after the beta. Until then all suites are free to use."}</p>
     </div>
   );
 }
 
-function ConnectorsView({ user }) {
+const SYNCABLE = new Set(["stripe", "hubspot"]);
+
+function ConnectorsView({ user, notify }) {
   const [saved, setSaved] = useState([]);
   const [openKey, setOpenKey] = useState(null);
   const [cfg, setCfg] = useState({});
+  const [importing, setImporting] = useState(null); // null | { kind?, parsed? }
+  const [syncing, setSyncing] = useState("");
 
-  useEffect(() => {
-    let ok = true;
-    fetch(`/api/records?email=${encodeURIComponent(user.email)}&kind=connectors`)
-      .then((r) => r.json()).then((d) => { if (ok) setSaved(Array.isArray(d.records) ? d.records : []); }).catch(() => {});
-    return () => { ok = false; };
-  }, []);
+  const sync = async (c) => {
+    setSyncing(c.key);
+    try {
+      if (c.key === "gsheets") {
+        const d = await api("/api/connector-sync", { method: "POST", body: { connector: "gsheets" } });
+        setImporting({ parsed: { headers: d.headers, rows: d.rows } });
+      } else {
+        const d = await api("/api/connector-sync", { method: "POST", body: { connector: c.key } });
+        notify(`${c.name}: ${d.imported} new, ${d.skipped} already imported.`);
+        reload();
+      }
+    } catch (e) { notify(`${c.name}: ${e.message}`, "error"); }
+    setSyncing("");
+  };
+
+  const reload = () => api(`/api/records?email=${encodeURIComponent(user.email)}&kind=connectors`)
+    .then((d) => setSaved(Array.isArray(d.records) ? d.records : [])).catch(() => {});
+  useEffect(() => { reload(); }, []);
 
   const recordFor = (key) => saved.find((s) => (s.data || {}).connectorKey === key);
   const open = (c) => { const rec = recordFor(c.key); setCfg(rec ? (rec.data.config || {}) : {}); setOpenKey(c.key); };
@@ -2675,7 +2715,8 @@ function ConnectorsView({ user }) {
 
   return (
     <div className="plat-view">
-      <div className="plat-view-head"><h1><Workflow size={22} /> Connectors</h1><p>Connect your tools so the agents import data automatically. You configure a source here; the sync runs on our side and fills your Operations tables.</p></div>
+      <div className="plat-view-head"><h1><Workflow size={22} /> Connectors</h1><p>Bring your data in: sync Stripe payments and HubSpot contacts, import a Google Sheet, or upload a CSV/Excel export from your POS or accounting tool. Keys stay on the server — after saving only the last 4 characters are shown.</p></div>
+      {importing && <ImportDialog user={user} initial={importing} notify={notify} onClose={() => setImporting(null)} />}
       <div className="plat-connector-grid">
         {CONNECTORS.map((c) => {
           const rec = recordFor(c.key); const isOpen = openKey === c.key;
@@ -2688,15 +2729,24 @@ function ConnectorsView({ user }) {
                 <div className="plat-connector-form">
                   {c.fields.length === 0 && <p className="plat-empty">No configuration needed.</p>}
                   {c.fields.map((f) => (
-                    <label key={f.key}>{f.label}<input value={cfg[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder || ""} /></label>
+                    <label key={f.key}>{f.label}<input type={/key|token|secret/i.test(f.key) ? "password" : "text"} autoComplete="off" value={cfg[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder || ""} /></label>
                   ))}
                   <div className="plat-connector-actions"><button className="plat-ghost" onClick={() => setOpenKey(null)}>Cancel</button><button className="plat-start" onClick={() => save(c)}>Save <Check size={15} /></button></div>
                 </div>
               ) : (
+                <>
                 <div className="plat-connector-actions">
-                  <button className="plat-start" onClick={() => open(c)}>{rec ? "Edit" : "Connect"} <ArrowRight size={15} /></button>
-                  {rec && <button className="plat-ghost" onClick={() => disconnect(c)}>Disconnect</button>}
+                  {c.key === "csv" ? (
+                    <button className="plat-start" onClick={() => setImporting({})}>Upload file <ArrowRight size={15} /></button>
+                  ) : (
+                    <button className={rec ? "plat-ghost" : "plat-start"} onClick={() => open(c)}>{rec ? "Edit" : "Connect"} {!rec && <ArrowRight size={15} />}</button>
+                  )}
+                  {rec && (SYNCABLE.has(c.key) || c.key === "gsheets") && <button className="plat-start" disabled={syncing === c.key} onClick={() => sync(c)}>{syncing === c.key ? "Syncing…" : c.key === "gsheets" ? "Import now" : "Sync now"}</button>}
+                  {rec && c.key !== "csv" && <button className="plat-ghost" onClick={() => disconnect(c)}>Disconnect</button>}
                 </div>
+                {rec && rec.data && rec.data.lastSync && <span className="plat-connector-imports">Last sync {new Date(rec.data.lastSync).toLocaleString()} · {rec.data.lastSyncCount || 0} new</span>}
+                {!SYNCABLE.has(c.key) && !["gsheets", "csv"].includes(c.key) && rec && <span className="plat-connector-imports">Automatic sync for {c.name} is coming — until then export a CSV and use “CSV / Excel”.</span>}
+                </>
               )}
             </div>
           );
@@ -2973,7 +3023,7 @@ function OverviewView({ user, pkg, runs, company, goto, notifications = [], onNo
   const [metrics, setMetrics] = useState(null);
   useEffect(() => {
     let ok = true;
-    fetch(`/api/context?email=${encodeURIComponent(user.email)}`).then((r) => r.json()).then((d) => { if (ok && d && d.data) setMetrics(d.data); }).catch(() => {});
+    api(`/api/context?email=${encodeURIComponent(user.email)}`).then((d) => { if (ok && d && d.data) setMetrics(d.data); }).catch(() => {});
     return () => { ok = false; };
   }, []);
   const m = metrics || {}; const fin = m.finance || {}; const cust = m.customers || {}; const tk = m.tasks || {};
@@ -3012,6 +3062,13 @@ function OverviewView({ user, pkg, runs, company, goto, notifications = [], onNo
           <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span><span className="plat-kpi-hint">{k.hint}</span></div>
         ))}
       </div>
+
+      {m.monthly && (
+        <div className="plat-card">
+          <h3>Revenue &amp; profit — last 12 months <InfoButton text="Booked revenue and profit per month from Income &amp; Expenses and POS sales. Hover a month for details, or switch to the table." /></h3>
+          <MonthlyChart months={m.monthly} />
+        </div>
+      )}
 
       {completeness < 100 && (
         <div className="plat-card plat-cta-card">
@@ -3092,14 +3149,20 @@ function FinanceDashboardView({ user }) {
     ]).then(([t, s, st]) => { if (ok) { setTx(t.records || []); setSales(s.records || []); setStaff(st.records || []); } }).catch(() => {}).finally(() => { if (ok) setLoading(false); });
     return () => { ok = false; };
   }, []);
-  const income = tx.filter((r) => (r.data || {}).type === "Income").reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
+  const [period, setPeriod] = useState("all");
+  const txP = tx.filter((r) => inPeriod(r, period));
+  const salesP = sales.filter((r) => inPeriod(r, period));
+  const sumAmt = (rows) => rows.reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
   const isStock = (r) => (r.data || {}).category === "Purchasing";
-  const txExpense = tx.filter((r) => (r.data || {}).type === "Expense" && !isStock(r)).reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
-  const stockPurchases = tx.filter((r) => (r.data || {}).type === "Expense" && isStock(r)).reduce((a, r) => a + (Number((r.data || {}).amount) || 0), 0);
-  const staffCost = staff.filter((r) => (r.data || {}).status === "Active").reduce((a, r) => a + (Number((r.data || {}).salary) || 0), 0);
+  const income = sumAmt(txP.filter((r) => (r.data || {}).type === "Income"));
+  const txExpense = sumAmt(txP.filter((r) => (r.data || {}).type === "Expense" && !isStock(r)));
+  const stockPurchases = sumAmt(txP.filter((r) => (r.data || {}).type === "Expense" && isStock(r)));
+  const monthlyStaff = staff.filter((r) => (r.data || {}).status === "Active").reduce((a, r) => a + (Number((r.data || {}).salary) || 0), 0);
+  const staffCost = monthlyStaff * (periodMonths(period) || 1);
   const expense = txExpense + staffCost;
-  const cogs = sales.reduce((a, r) => a + (Number((r.data || {}).cost) || 0), 0);
+  const cogs = salesP.reduce((a, r) => a + (Number((r.data || {}).cost) || 0), 0);
   const profit = income - expense - cogs;
+  const months = monthlySeries([...tx.map((r) => ({ ...r, kind: "transactions" })), ...sales.map((r) => ({ ...r, kind: "sales" }))]);
   const kpis = [
     { label: "Revenue", value: money(income) }, { label: "Expenses", value: money(expense) },
     { label: "Cost of goods", value: money(cogs) }, { label: "Profit", value: money(profit) },
@@ -3107,9 +3170,12 @@ function FinanceDashboardView({ user }) {
   return (
     <div className="plat-view">
       <div className="plat-view-head"><h1><Cpu size={22} /> Finance</h1><p>Your live financial picture — calculated from Income &amp; Expenses and POS sales, not entered by hand.</p></div>
+      <div className="plat-period" role="group" aria-label="Period">
+        {PERIODS.map((p) => <button key={p.key} className={`plat-period-btn ${period === p.key ? "is-active" : ""}`} onClick={() => setPeriod(p.key)}>{p.label}</button>)}
+      </div>
       <div className="plat-kpis">{kpis.map((k) => <div className="plat-kpi" key={k.label}><span className="plat-kpi-val">{k.value}</span><span className="plat-kpi-label">{k.label}</span></div>)}</div>
       <div className="plat-card">
-        <h3>Revenue · Expenses · Profit <InfoButton text="Revenue = booked income. Expenses = expense entries (without stock purchases) + monthly cost of active staff. Cost of goods = cost of what you sold (POS). Stock purchases are shown separately — they count as cost once the goods are sold. Profit = revenue − expenses − cost of goods." /></h3>
+        <h3>Revenue · Expenses · Profit <InfoButton text={`Revenue = booked income. Expenses = expense entries (without stock purchases) + cost of active staff (${money(monthlyStaff)} per month${periodMonths(period) ? ` × ${periodMonths(period)}` : ""}). Cost of goods = cost of what you sold (POS). Stock purchases are shown separately — they count as cost once the goods are sold. Profit = revenue − expenses − cost of goods.`} /></h3>
         <MiniBars items={[
           { label: "Revenue", value: income, color: "#4ade80" },
           { label: "Expenses", value: expense, color: "#f87171" },
@@ -3118,6 +3184,10 @@ function FinanceDashboardView({ user }) {
         ]} />
         {stockPurchases > 0 && <p className="plat-context-note">Stock purchases (cash out, not yet cost): {money(stockPurchases)}</p>}
         {!loading && tx.length === 0 && sales.length === 0 && <p className="plat-empty">No financial data yet — add entries under Income &amp; Expenses or record sales in POS, and this fills automatically.</p>}
+      </div>
+      <div className="plat-card">
+        <h3>Trend — last 12 months</h3>
+        <MonthlyChart months={months} />
       </div>
     </div>
   );
@@ -3173,6 +3243,7 @@ function CompanySectionView({ section, data, onSave, onResearch, user }) {
 }
 
 const ACTIVE_RUN = new Set(["queued", "running"]);
+const NO_PLAN_PKG = { key: "none", name: "No plan yet", target: "", suites: ["foundation"] };
 
 function runFileName(run) {
   const base = (run.module_name || run.module_key || "deliverable").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -3419,7 +3490,7 @@ function DeliverablesView({ runs, goto, user }) {
   );
 }
 
-function ActivityView({ runs, goto }) {
+function ActivityView({ runs, goto, user }) {
   return (
     <div className="plat-view">
       <div className="plat-view-head"><h1>Activity</h1><p>Every module run and its current status.</p></div>
@@ -3438,6 +3509,7 @@ function ActivityView({ runs, goto }) {
           </div>
         )}
       </div>
+      {user && <ChangeHistory user={user} />}
     </div>
   );
 }
@@ -3511,6 +3583,135 @@ function AgentChat({ user, view }) {
   );
 }
 
+function Onboarding({ user }) {
+  const [f, setF] = useState({ name: user.name && user.name !== user.email ? user.name : "", company: user.company || "", industry: "" });
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!f.industry) { setErr("Please pick your industry."); return; }
+    setBusy(true); setErr("");
+    const { error } = await supabase.auth.updateUser({ data: { name: f.name, company: f.company, industry: f.industry } });
+    if (error) { setErr(error.message); setBusy(false); }
+  };
+  return (
+    <div className="plat-modal-backdrop">
+      <form className="plat-card plat-recovery" onSubmit={submit}>
+        <h3>Welcome to NEXUM</h3>
+        <p className="plat-context-note">Two details tailor the platform — vocabulary, operations tabs and every agent — to your business.</p>
+        <label>Your name<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+        <label>Company<input value={f.company} onChange={(e) => setF({ ...f, company: e.target.value })} /></label>
+        <label>Industry
+          <select value={f.industry} onChange={(e) => setF({ ...f, industry: e.target.value })} required>
+            <option value="">— select your industry —</option>
+            {INDUSTRIES.map((i) => <option key={i.key} value={i.key}>{i.name}</option>)}
+          </select>
+        </label>
+        {err && <p className="plat-err">{err}</p>}
+        <div className="plat-modal-actions"><button type="submit" className="plat-start" disabled={busy}>{busy ? "…" : "Continue"} <ArrowRight size={15} /></button></div>
+      </form>
+    </div>
+  );
+}
+
+const AUDIT_OP = { insert: "added", update: "changed", delete: "deleted" };
+function auditText(e) {
+  const what = e.table_name === "module_runs" ? `Agent run ${e.kind || ""}` : e.table_name === "company_profiles" ? "Company profile" : e.table_name === "subscriptions" ? "Plan" : (e.kind || "record");
+  const ch = e.changed || {};
+  if (e.table_name === "module_runs") return `${what}: ${(ch.status || "")}`;
+  if (e.op === "update") return `${what} ${AUDIT_OP.update}: ${Object.keys(ch).slice(0, 4).join(", ")}`;
+  return `${what} ${AUDIT_OP[e.op] || e.op}${ch.name ? ` — ${ch.name}` : ch.title ? ` — ${ch.title}` : ""}`;
+}
+
+function ChangeHistory({ user }) {
+  const [entries, setEntries] = useState(null);
+  useEffect(() => {
+    let ok = true;
+    api(`/api/audit?email=${encodeURIComponent(user.email)}&limit=60`).then((d) => { if (ok) setEntries(d.entries || []); }).catch(() => { if (ok) setEntries([]); });
+    return () => { ok = false; };
+  }, [user]);
+  return (
+    <div className="plat-card">
+      <h3>Change history <InfoButton text="Every change to your data — by you, your team or your agents — is recorded here." /></h3>
+      {entries == null ? <p className="plat-empty">Loading…</p> : entries.length === 0 ? <p className="plat-empty">No changes recorded yet.</p> : (
+        <div className="plat-run-list">
+          {entries.map((e) => (
+            <div className="plat-run" key={e.id}>
+              <div><b>{auditText(e)}</b><span>{new Date(e.at).toLocaleString()} · {String(e.actor || "").startsWith("internal:") ? "integration" : e.actor === user.email ? "you" : /^(postgres|service_role|supabase)/.test(e.actor || "") ? "agent / system" : e.actor}</span></div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Tables with their own views (not in COLLECTIONS) that can still be imported.
+const EXTRA_IMPORTS = [
+  { key: "products", name: "Products", fields: [
+    { key: "name", label: "Name" }, { key: "category", label: "Category" },
+    { key: "price", label: "Price", type: "number" }, { key: "cost", label: "Cost", type: "number" }, { key: "status", label: "Status" }] },
+];
+
+function ImportDialog({ user, initial, onClose, notify }) {
+  const importable = [...COLLECTIONS.filter((c) => !["tasks"].includes(c.key)), ...EXTRA_IMPORTS.filter((x) => !COLLECTIONS.some((c) => c.key === x.key))];
+  const [kind, setKind] = useState(initial && initial.kind ? initial.kind : importable[0].key);
+  const [parsed, setParsed] = useState(initial && initial.parsed ? initial.parsed : null);
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const col = importable.find((c) => c.key === kind);
+  const labels = Object.fromEntries(col.fields.map((f) => [f.key, [fieldLabel(user.industry, kind, f.key, f.label)]]));
+  const map = parsed ? mapHeaders(parsed.headers, col.fields, labels) : {};
+  const records = parsed ? rowsToRecords(parsed.rows, col.fields, map) : [];
+  const onFile = (file) => {
+    setErr("");
+    if (!file) return;
+    if (file.size > 5_000_000) { setErr("File too large (max 5 MB)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => { const p = parseCsv(reader.result); if (!p.headers.length) setErr("No rows found."); setParsed(p); };
+    reader.readAsText(file);
+  };
+  const run = async () => {
+    setBusy(true); setErr("");
+    try {
+      let n = 0;
+      for (let i = 0; i < records.length; i += 500) {
+        const d = await api("/api/records", { method: "POST", body: { email: user.email, kind, items: records.slice(i, i + 500) } });
+        n += d.count || 0;
+      }
+      notify(`${n} ${col.name.toLowerCase()} imported.`);
+      onClose(true);
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+  return (
+    <div className="plat-modal-backdrop">
+      <div className="plat-card plat-import">
+        <div className="plat-result-head"><h3>Import data</h3><button className="plat-ghost" onClick={() => onClose(false)}>Close</button></div>
+        <label>Import into
+          <select value={kind} onChange={(e) => setKind(e.target.value)}>{importable.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}</select>
+        </label>
+        {!(initial && initial.parsed) && <label>CSV file (Excel: “Save as CSV”)<input type="file" accept=".csv,text/csv,.txt" onChange={(e) => onFile(e.target.files && e.target.files[0])} /></label>}
+        {parsed && (
+          <>
+            <p className="plat-context-note">{parsed.rows.length} rows · columns matched: {Object.keys(map).length ? Object.entries(map).map(([k, h]) => `${h} → ${fieldLabel(user.industry, kind, k, (col.fields.find((f) => f.key === k) || {}).label)}`).join(", ") : "none — rename the column headers to the field names shown in the table"}</p>
+            {records.length > 0 && (
+              <div className="plat-table-wrap">
+                <table className="plat-table">
+                  <thead><tr>{Object.keys(map).map((k) => <th key={k}>{fieldLabel(user.industry, kind, k, (col.fields.find((f) => f.key === k) || {}).label)}</th>)}</tr></thead>
+                  <tbody>{records.slice(0, 5).map((r, i) => <tr key={i}>{Object.keys(map).map((k) => <td key={k}>{String(r[k] ?? "")}</td>)}</tr>)}</tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+        {err && <p className="plat-err">{err}</p>}
+        <div className="plat-modal-actions">
+          <button className="plat-start" disabled={busy || records.length === 0} onClick={run}>{busy ? "Importing…" : `Import ${records.length} rows`} <ArrowRight size={15} /></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PasswordRecovery() {
   const [open, setOpen] = useState(() => !!(recovery && recovery.active));
   const [pw, setPw] = useState("");
@@ -3552,9 +3753,7 @@ function PasswordRecovery() {
 function PlatformPage() {
   const { lang } = useI18n();
   const [user, setUser, authReady] = usePlatformUser();
-  const [pkgKey, setPkgKey] = useState(() => {
-    try { return window.localStorage.getItem("nexum_pkg") || "enterprise-plus"; } catch { return "enterprise-plus"; }
-  });
+  const [plan, setPlan] = useState(null);
   const [view, setView] = useState("overview");
   const [runs, setRuns] = useState([]);
   const [company, setCompany] = useState({});
@@ -3565,7 +3764,8 @@ function PlatformPage() {
   const prevRunsRef = useRef(null);
   const toastTimer = useRef(0);
 
-  const pkg = packageByKey(pkgKey);
+  // plan comes from the server (/api/billing); until it is known nothing is unlocked
+  const pkg = !plan ? NO_PLAN_PKG : plan.package_key === "none" ? NO_PLAN_PKG : packageByKey(plan.package_key);
   const ind = industryConfig(user && user.industry);
   const email = user ? user.email : null;
   activeRef.current = runs.some((r) => ACTIVE_RUN.has(r.status));
@@ -3592,13 +3792,27 @@ function PlatformPage() {
 
   // per-user data; everything is reset when the user changes (sign-out / switch)
   useEffect(() => {
-    setRuns([]); setCompany({}); setNotifications([]); prevRunsRef.current = null; setView("overview");
+    setRuns([]); setCompany({}); setNotifications([]); setPlan(null); prevRunsRef.current = null; setView("overview");
     if (!email) return;
     let ok = true;
     if (!supabaseEnabled) {
       try { const l = JSON.parse(window.localStorage.getItem(`nexum_company_${email}`) || "null"); if (l) setCompany(l); } catch (e) {}
     }
     loadCompany();
+    const loadPlan = () => api(`/api/billing?email=${encodeURIComponent(email)}`).then((d) => { if (ok) setPlan(d); }).catch(() => { if (ok) setPlan({ package_key: "none", billing: true, status: "unknown" }); });
+    loadPlan();
+    // back from Stripe Checkout: the webhook may need a few seconds
+    let checkoutTimer = 0;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout")) {
+      const success = params.get("checkout") === "success";
+      try { window.history.replaceState(null, "", "/platform"); } catch (e) {}
+      if (success) {
+        notify("Payment received — activating your plan…");
+        let tries = 0;
+        checkoutTimer = window.setInterval(() => { tries++; loadPlan(); if (tries >= 10) window.clearInterval(checkoutTimer); }, 3000);
+      } else notify("Checkout cancelled — nothing was charged.", "warn");
+    }
     let last = 0; let inFlight = false;
     const loadRuns = () => {
       if (inFlight) return; // no overlapping polls → no out-of-order statuses
@@ -3627,7 +3841,7 @@ function PlatformPage() {
       if (activeRef.current || Date.now() - last > 30000) loadRuns();
       if (Date.now() - lastNotes > 60000) { lastNotes = Date.now(); loadNotifications(); }
     }, 5000);
-    return () => { ok = false; window.clearInterval(iv); };
+    return () => { ok = false; window.clearInterval(iv); window.clearInterval(checkoutTimer); };
   }, [email]);
 
   // react to agent progress: toast, refresh alerts/profile
@@ -3650,7 +3864,6 @@ function PlatformPage() {
     }
   }, [runs]);
 
-  const setPackage = (k) => { setPkgKey(k); try { window.localStorage.setItem("nexum_pkg", k); } catch (e) {} };
 
   const persistCompany = (next) => {
     setCompany(next);
@@ -3714,9 +3927,9 @@ function PlatformPage() {
   let content = null;
   if (view === "overview") content = <OverviewView user={user} pkg={pkg} runs={runs} company={company} goto={goto} notifications={notifications} onNoteRead={markNoteRead} />;
   else if (view === "deliverables") content = <DeliverablesView runs={runs} goto={goto} user={user} />;
-  else if (view === "activity") content = <ActivityView runs={runs} goto={goto} />;
-  else if (view === "connectors") content = <ConnectorsView user={user} />;
-  else if (view === "subscription") content = <SubscriptionView pkg={pkg} setPackage={setPackage} />;
+  else if (view === "activity") content = <ActivityView runs={runs} goto={goto} user={user} />;
+  else if (view === "connectors") content = <ConnectorsView user={user} notify={notify} />;
+  else if (view === "subscription") content = <SubscriptionView pkg={pkg} plan={plan} notify={notify} />;
   else if (view === "products") content = <ProductsView user={user} label={ind.product} industryKey={user.industry} />;
   else if (view === "pos") content = <PosView user={user} label={ind.sale} />;
   else if (view === "finance") content = <FinanceDashboardView user={user} />;
@@ -3733,7 +3946,7 @@ function PlatformPage() {
     content = section ? <CompanySectionView section={section} data={company[section.key]} onSave={saveCompanySection} onResearch={runResearch} user={user} /> : null;
   } else if (view.startsWith("module:")) {
     const mod = allModules().find((m) => m.key === view.slice(7));
-    if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} onRunUpdated={onRunUpdated} notify={notify} gotoUpgrade={() => goto("overview")} user={user} />;
+    if (mod) content = <ModuleView module={mod} unlocked={pkg.suites.includes(mod.suiteKey)} companyFlat={companyFlat} runs={runs} onRun={runModule} onRunUpdated={onRunUpdated} notify={notify} gotoUpgrade={() => goto("subscription")} user={user} />;
   }
 
   const navItem = (key, label, icon, opts = {}) => {
@@ -3797,6 +4010,7 @@ function PlatformPage() {
       </main>
       <AgentChat user={user} view={view} />
       <PasswordRecovery />
+      {user.needsOnboarding && supabaseEnabled && <Onboarding user={user} />}
     </Shell>
   );
 }

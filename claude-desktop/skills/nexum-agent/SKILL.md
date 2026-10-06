@@ -17,7 +17,7 @@ migrations, never touch `auth.*`.
 |---|---|
 | `select nexum_claim_next('claude');` | Next job (JSON) or `null`. Atomically marks it `running`. |
 | `select * from nexum_search('<email>', '<words>', 10);` | Keyword search in that customer's knowledge base. |
-| `select nexum_records('<email>', '<kind>', 200);` | Detail rows of one collection (customers, products, inventory, suppliers, purchases, sales, transactions, campaigns, staff, tasks). |
+| `select nexum_records('<email>', '<kind>', 200);` | Detail rows of one collection (customers, products, inventory, suppliers, purchases, sales, transactions, invoices, campaigns, staff, tasks). |
 | `select nexum_ask('<run_id>', '<questions json>');` | Ask the owner questions → UI shows a form → job returns to the queue with `answers`. |
 | `select nexum_complete('<run_id>', $md$…$md$, '<summary>', '<tasks json>', '<alerts json>', '<profile patch json>');` | Finish: deliverable + artifact + tasks + alerts (+ profile data). Pass `null` for unused arguments. |
 | `select nexum_fail('<run_id>', '<reason>');` | Mark the job failed (owner can regenerate). |
@@ -47,7 +47,10 @@ previous_result: the last finished result of the same module (update it, don't r
    (see "Chat" below) with `nexum_reply_chat`.
 2. **Jobs:** loop up to 5 times (or until `null`):
    1. `select nexum_claim_next('claude');`
-   2. Read the job. Need more numbers? Use `nexum_records` / `nexum_search` for
+   2. **Read the module guide `modules/<module_key>.md`** (in this skill's folder) — it
+      defines the inputs to use, when to ask, what to research, the method, the exact
+      output skeleton, the quality bar and which tasks/alerts to emit. Follow it.
+      Read the job. Need more numbers? Use `nexum_records` / `nexum_search` for
       **this email only**. Never read or mention another customer's data.
    3. **Clarify or produce:**
       - If information is missing that would change the result materially **and**
@@ -83,13 +86,13 @@ previous_result: the last finished result of the same module (update it, don't r
 
 `nexum_complete` arguments:
 - `summary`: one sentence, shown on the Deliverables card.
-- `tasks`: 0–5 follow-up actions `[{"title":"…","priority":"high|medium|low"}]`
+- `tasks`: 0–5 follow-up actions (daily-tasks: 3–6) `[{"title":"…","priority":"high|medium|low"}]`
   (duplicates of open tasks are skipped automatically).
 - `alerts`: only for real signals `[{"severity":"recommendation|info|warning|critical","title":"…","message":"…","impact":"+1.200 €/Monat","link":"finance"}]`
   (`link` = platform view: `finance`, `pos`, `collection:inventory`, `module:<key>` …).
 - `profile patch`: only for `company-research` — `{"basics":{"companyName":"…","website":"…"},"research":{"founded":"…","sources":"…"}}`.
 
-## Module catalog (module_key → deliverables)
+## Module catalog (module_key → deliverables; full guide in `modules/<key>.md`)
 
 - market-intelligence → Market analysis, Competitor matrix, Trend radar, SWOT, Opportunity map
 - business-model → Business Model Canvas, Scenario simulations, PMF scorecard, Decision matrix

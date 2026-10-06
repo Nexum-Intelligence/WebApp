@@ -17,11 +17,12 @@ Details: `design/02-agent-data-flow.md`. Decisions: `DECISIONS.md`.
 
 ## 1. Supabase
 
-### 1.1 Database (one migration)
+### 1.1 Database (two migrations, in order)
 
 Supabase → SQL editor → run
-`supabase/migrations/20261006000000_nexum_core.sql` (or `supabase db push`).
-It is idempotent and works on a fresh project and on the old tables. It creates:
+`supabase/migrations/20261006000000_nexum_core.sql`, then
+`supabase/migrations/20261007000000_nexum_ops_billing.sql` (or `supabase db push`).
+Both are idempotent and work on a fresh project and on the old tables. The first creates:
 
 - tables `company_profiles`, `company_records`, `module_runs`, `agent_messages`,
   `knowledge_chunks` (pgvector, 384 dims)
@@ -35,6 +36,17 @@ It is idempotent and works on a fresh project and on the old tables. It creates:
   `postgres` (the MCP connection)
 
 The `leads` table of the readiness form (READINESS-SETUP.md) also gets RLS enabled.
+
+The second adds:
+
+- `nexum_record_sale` / `nexum_receive_purchase` — POS sale (sale + income + stock) and
+  goods receipt (status + stock + weighted average cost + stock purchase) as single
+  transactions, used by `/api/ops`
+- `subscriptions` — the tenant's plan (written by the Stripe webhook or by you)
+- `audit_log` — every change to tenant data with the actor (user, integration or
+  agent); shown under Activity → Change history; connector secrets are never logged
+- `nexum_schedule_recurring` — daily "Daily Tasks" for active tenants and a Monday
+  refresh of live modules (scheduled in 1.3)
 
 ### 1.2 Embeddings (Edge Function)
 
@@ -52,7 +64,11 @@ Then run `supabase/setup/embed-cron.sql` once (fill in project URL + the
 function every minute when there is pending work. The API additionally triggers
 it right after each write.
 
-### 1.3 Auth
+### 1.3 Recurring runs
+
+Run `supabase/setup/schedules.sql` once (pg_cron, daily 05:30 UTC).
+
+### 1.4 Auth
 
 Authentication → Providers:
 
@@ -77,7 +93,10 @@ The UI supports sign-up, sign-in, Google, Microsoft, password reset
 | `SUPABASE_ANON_KEY` | Project Settings → API (anon/publishable) | API — verifies user tokens |
 | `VITE_SUPABASE_URL` | same as `SUPABASE_URL` | browser (build time) |
 | `VITE_SUPABASE_ANON_KEY` | same as `SUPABASE_ANON_KEY` | browser (build time) |
-| `NEXUM_INTERNAL_KEY` | any long random string (`openssl rand -hex 32`) | optional: server-to-server calls with `x-nexum-key` |
+| `NEXUM_INTERNAL_KEY` | any long random string (`openssl rand -hex 32`) | server-to-server calls with `x-nexum-key`; also lets you set plans manually |
+| `STRIPE_SECRET_KEY` | Stripe → Developers → API keys (`sk_live_…` / `sk_test_…`) | **turns billing on** — without it every tenant has all suites (beta) |
+| `STRIPE_WEBHOOK_SECRET` | Stripe → Webhooks → endpoint secret (`whsec_…`) | verifies `/api/stripe-webhook` |
+| `PUBLIC_SITE_URL` | `https://www.nexum-intelligence.com` | Checkout return URLs |
 
 Redeploy after changing `VITE_*` (they are baked into the build).
 
@@ -86,12 +105,27 @@ Redeploy after changing `VITE_*` (they are baked into the build).
 variables are missing, the UI falls back to the local demo login and the API
 answers 401 — so set all five together.
 
-## 3. Claude automation
+## 3. Billing (Stripe)
+
+1. Set `STRIPE_SECRET_KEY` (start with the test key) and `PUBLIC_SITE_URL`.
+2. Stripe → Developers → Webhooks → add endpoint `https://www.nexum-intelligence.com/api/stripe-webhook`
+   with events `checkout.session.completed`, `invoice.paid`,
+   `customer.subscription.updated`, `customer.subscription.deleted`; put the signing
+   secret into `STRIPE_WEBHOOK_SECRET`.
+3. Prices come from `PACKAGES` in `src/modules.js` (once or yearly) — the browser never
+   sends a price. Paid → `subscriptions` row → suites unlock (the module start is checked
+   on the server, `402` otherwise). "Daily Tasks" and "Company Research" are always free.
+4. Set a plan by hand (offline invoice, trial):
+   `curl -X PATCH https://www.nexum-intelligence.com/api/billing -H "x-nexum-key: $NEXUM_INTERNAL_KEY" -H "Content-Type: application/json" -d '{"email":"kunde@firma.de","packageKey":"growth","periodEnd":"2027-12-31"}'`
+
+Extra runs ("3 extra runs for …") are not metered yet.
+
+## 4. Claude automation
 
 See `claude-desktop/README.md`: connect the Supabase MCP (or connector), add the
 `nexum-agent` skill, create a scheduled task with `claude-desktop/AUTOMATION-PROMPT.md`.
 
-## 4. Acceptance test after deploy (incognito)
+## 5. Acceptance test after deploy (incognito)
 
 1. Sign up with a new address → confirm email → sign in.
 2. Add a supplier/customer → it appears; Supabase: a row in `company_records` and
@@ -104,14 +138,14 @@ See `claude-desktop/README.md`: connect the Supabase MCP (or connector), add the
    → **401**.
 7. `curl "$SUPABASE_URL/rest/v1/company_records" -H "apikey: <anon key>"` → `[]`.
 
-## 5. Local development and tests
+## 6. Local development and tests
 
 - `pnpm dev` — app only; without `VITE_*` env the platform runs in demo mode.
 - `pnpm dev:full` — app **and** `/api` functions on one origin (reads `.env.local`).
 - Tests (see `tests/README.md`): `pnpm test` (unit), `pnpm test:db` (SQL, needs
   Docker), `pnpm test:e2e` (API → Postgres/PostgREST → automation interface).
 
-## 6. Data reference
+## 7. Data reference
 
 `company_records.kind`: `customers, products, inventory, suppliers, purchases,
 sales, transactions, invoices, campaigns, staff, tasks, notifications, artifacts,
@@ -130,7 +164,10 @@ connectors`.
   **artifacts** `{ module_key, title, format:'md', run_id, summary }` — the content
   lives in `module_runs.result.markdown` and is downloaded as `.md` or printed to PDF.
 - **Connectors:** secrets are masked in API responses (`••••1234`) and kept when a
-  masked value is sent back. They are never embedded or given to the automation.
-  Real connector syncs are not implemented yet.
-- **Plans:** the selected package is still stored in the browser (`nexum_pkg`);
-  server-side plan enforcement comes with billing.
+  masked value is sent back. They are never embedded, logged or given to the automation.
+  - **Stripe:** "Sync now" imports paid charges (minus refunds) as income (`externalId` = charge id, no duplicates).
+  - **HubSpot:** "Sync now" imports contacts as customers (private app token, scope `crm.objects.contacts.read`).
+  - **Google Sheets:** sheet shared as "anyone with the link can view" → "Import now" → column mapping → import.
+  - **CSV / Excel:** upload a CSV (`;` or `,`, German number formats) into any operations table.
+  - **POS / DATEV:** no direct API yet — export CSV and use the CSV import.
+- **Plans:** `subscriptions` table; checked on the server when a module is started.

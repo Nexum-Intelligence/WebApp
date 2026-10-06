@@ -10,6 +10,7 @@
 // in every response and kept when a masked value is sent back.
 
 import { resolveTenant } from "../lib/auth.js";
+import { setActor } from "../lib/actor.js";
 import { readBody, fail, rest, kickEmbed, enc } from "../lib/http.js";
 
 const KIND = /^[a-z][a-z0-9_-]{1,39}$/;
@@ -47,6 +48,7 @@ export default async function handler(req, res) {
   const body = req.method === "GET" || req.method === "DELETE" ? {} : readBody(req);
   const t = await resolveTenant(req, q.email || body.email);
   if (!t.email) return fail(res, t.status, t.error);
+  setActor(t.actor);
   const email = t.email;
 
   try {
@@ -58,6 +60,19 @@ export default async function handler(req, res) {
       const r = await rest(`company_records?email=eq.${enc(email)}&kind=eq.${enc(kind)}&order=created_at.desc&limit=${limit}&select=id,created_at,updated_at,kind,data`);
       if (!r.ok) return fail(res, 502, "Could not load records");
       return res.status(200).json({ records: r.data.map(view) });
+    }
+
+    if (req.method === "POST" && Array.isArray(body.items)) {
+      // bulk import (CSV / Sheets): up to 1000 rows of one kind
+      const { kind, items } = body;
+      if (!KIND.test(kind || "") || kind === "connectors") return fail(res, 400, "Missing or invalid kind");
+      if (!items.length || items.length > 1000) return fail(res, 400, "Import 1–1000 rows at a time");
+      if (items.some((d) => !d || typeof d !== "object" || Array.isArray(d))) return fail(res, 400, "Every row must be an object");
+      if (t.demo) return res.status(200).json({ ok: true, stored: false, count: items.length });
+      const r = await rest("company_records", { method: "POST", body: items.map((data) => ({ email, kind, data })), prefer: "return=minimal" });
+      if (!r.ok) return fail(res, 502, "Import failed");
+      await kickEmbed();
+      return res.status(200).json({ ok: true, stored: true, count: items.length });
     }
 
     if (req.method === "POST") {

@@ -80,3 +80,37 @@ in Produktion Pflicht); Umstellung auf `user_id` ist offen.
 Wareneingaenge (`transactions.category = "Purchasing"`) zaehlen nicht mehr als
 Ausgabe, weil derselbe Wareneinsatz beim Verkauf als Cost of Goods gebucht wird
 (vorher doppelt gezaehlt). Sie werden separat als "Stock purchases" angezeigt.
+
+## 2026-10-07: Buchungen als Datenbankfunktionen
+
+Verkauf (Verkauf + Einnahme + Lagerabgang) und Wareneingang (Status + Bestand +
+gleitender Durchschnittspreis + Lagereinkauf) laufen als je eine Postgres-Funktion
+(`nexum_record_sale`, `nexum_receive_purchase`) hinter `/api/ops`. Vorher waren es
+mehrere API-Aufrufe, die bei Abbruch inkonsistente Buecher und bei parallelen
+Verkaeufen verlorene Lagerabgaenge erzeugen konnten. Die Kosten je Verkauf kommen
+aus dem aktuellen Rezept (Lager-Einkaufspreise), nicht aus einem gespeicherten Wert.
+
+## 2026-10-07: Plaene serverseitig, Stripe Checkout ohne Preis-IDs
+
+Der Plan liegt in `subscriptions` und wird beim Modulstart serverseitig geprueft
+(402). Billing ist erst aktiv, wenn `STRIPE_SECRET_KEY` gesetzt ist — bis dahin
+(Beta) sind alle Suiten frei. Checkout nutzt `price_data` aus `PACKAGES`
+(`src/modules.js`), damit keine Preis-IDs in Stripe gepflegt werden muessen und der
+Browser nie einen Preis bestimmt. Der Webhook verifiziert die Stripe-Signatur selbst
+(HMAC, 5 Min. Toleranz). Manuelle Plaene ueber `PATCH /api/billing` mit Internal Key.
+
+## 2026-10-07: Audit-Log per Trigger mit Akteur aus Request-Header
+
+Alle Aenderungen an Mandantendaten landen per Trigger in `audit_log`. Die API sendet
+den verifizierten Nutzer als `x-nexum-actor`; PostgREST stellt Header als
+`request.headers` bereit. Aenderungen der Automation erscheinen mit ihrer DB-Rolle.
+Connector-Daten werden nur als "geaendert" protokolliert, nie inhaltlich.
+
+## 2026-10-07: Connectoren — echte Syncs nur, wo testbar; sonst CSV
+
+Stripe (Charges → Einnahmen) und HubSpot (Kontakte → Kunden) synchronisieren direkt,
+Google Sheets und CSV laufen ueber denselben Import mit automatischer Spaltenzuordnung.
+POS-Systeme und DATEV haben sehr unterschiedliche bzw. zugangsbeschraenkte APIs; dort
+ist der CSV-Export der verlaessliche Weg, bis ein konkretes System feststeht.
+Google-Sheets-Abrufe sind auf `https://docs.google.com/spreadsheets/...` begrenzt
+(kein serverseitiger Abruf beliebiger URLs).

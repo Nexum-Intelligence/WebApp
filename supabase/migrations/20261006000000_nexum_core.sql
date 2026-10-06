@@ -478,3 +478,6 @@ begin
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
 end $$;
+
+-- let PostgREST pick up new tables/functions right away
+notify pgrst, 'reload schema';

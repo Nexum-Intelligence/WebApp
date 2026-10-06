@@ -6,6 +6,7 @@
 
 import { buildContext } from "../lib/context.js";
 import { resolveTenant } from "../lib/auth.js";
+import { setActor } from "../lib/actor.js";
 import { fail } from "../lib/http.js";
 
 export default async function handler(req, res) {
@@ -15,6 +16,7 @@ export default async function handler(req, res) {
   }
   const t = await resolveTenant(req, req.query && req.query.email);
   if (!t.email) return fail(res, t.status, t.error);
+  setActor(t.actor);
   try {
     const ctx = await buildContext(t.email);
     return res.status(200).json({ context: ctx.text, data: ctx.data });

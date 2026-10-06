@@ -9,9 +9,9 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "dev:full": "node scripts/dev-full.mjs",
-    "test": "node --test tests/unit/markdown.test.mjs tests/unit/api.test.mjs",
+    "test": "node --test tests/unit/markdown.test.mjs tests/unit/api.test.mjs tests/unit/chart.test.mjs",
     "test:db": "node tests/db/run.mjs",
-    "test:e2e": "node --test tests/e2e/flow.test.mjs"
+    "test:e2e": "node --test --test-concurrency=1 tests/e2e/flow.test.mjs tests/e2e/ops.test.mjs"
   },
   "dependencies": {
     "vite": "^6.0.5",

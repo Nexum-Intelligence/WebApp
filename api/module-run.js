@@ -10,7 +10,10 @@
 
 import { buildContext } from "../lib/context.js";
 import { resolveTenant } from "../lib/auth.js";
+import { setActor } from "../lib/actor.js";
 import { readBody, fail, rest, kickEmbed, enc } from "../lib/http.js";
+import { planFor, moduleAllowed } from "../lib/plans.js";
+import { allModules } from "../src/modules.js";
 
 const COLS = "id,created_at,updated_at,module_key,module_name,suite_key,package_key,status,result,summary,questions,error,started_at,finished_at";
 
@@ -18,6 +21,7 @@ export default async function handler(req, res) {
   const body = req.method === "GET" ? {} : readBody(req);
   const t = await resolveTenant(req, (req.query && req.query.email) || body.email);
   if (!t.email) return fail(res, t.status, t.error);
+  setActor(t.actor);
   const email = t.email;
 
   try {
@@ -67,11 +71,16 @@ export default async function handler(req, res) {
     } = body;
     if (!moduleKey || !/^[a-z0-9-]{2,60}$/.test(moduleKey)) return fail(res, 400, "Missing or invalid moduleKey");
     if (!inputs || typeof inputs !== "object" || Array.isArray(inputs)) return fail(res, 400, "inputs must be an object");
+    if (!t.demo && !t.internal) {
+      const plan = await planFor(email);
+      if (!moduleAllowed(plan, moduleKey)) return fail(res, 402, "This module is not part of your plan.");
+    }
 
     // the profile is read server-side from company_profiles; never trust a client copy
     const { _company, _context, answers, ...cleanInputs } = inputs;
     const record = {
-      email, name, company, package_key: packageKey, suite_key: suiteKey,
+      email, name, company, package_key: packageKey,
+      suite_key: ((allModules().find((m) => m.key === moduleKey) || {}).suiteKey) || suiteKey,
       module_key: moduleKey, module_name: moduleName, inputs: cleanInputs,
       status: "queued", lang, source,
     };

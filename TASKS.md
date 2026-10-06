@@ -33,12 +33,20 @@
   Auth-Provider konfigurieren (PLATFORM-SETUP.md 1–2).
 - [ ] Owner: Claude-Automation anlegen (claude-desktop/README.md) und Abnahmetest
   (PLATFORM-SETUP.md 4) durchfuehren.
-- [ ] Dedizierte Skills fuer business-plan, financial-planning, SWOT, go-to-market, decision.
-- [ ] Billing + serverseitige Plan-Pruefung (aktuell alle Module frei).
+- [x] Methodik-Guides fuer alle 33 Module (claude-desktop/skills/nexum-agent/modules/).
+- [x] Billing: Stripe Checkout + Webhook, Plan-Pruefung beim Modulstart, manuelle Plaene.
+- [x] Atomare Buchungen (Verkauf, Wareneingang) als DB-Funktionen.
+- [x] Audit-Log + Aenderungshistorie in Activity.
+- [x] Taegliche Tasks und woechentliche Live-Module per pg_cron.
+- [x] Umsatz-/Gewinn-Verlauf (12 Monate) in Overview und Finance, Zeitraumfilter.
+- [x] Onboarding fuer OAuth-Nutzer ohne Branche.
+- [x] Datenimport: CSV-Upload, Google Sheets, Stripe- und HubSpot-Sync.
+- [ ] Owner: Stripe-Konto/Keys + Webhook einrichten (PLATFORM-SETUP.md 3), `schedules.sql` ausfuehren.
+- [ ] Zusatzlaeufe ("3 extra runs") zaehlen und abrechnen.
+- [ ] Direkte POS-/DATEV-Anbindung, sobald das konkrete System feststeht.
 - [ ] Mandantenschluessel von E-Mail auf `user_id` umstellen.
-- [ ] Atomare Buchungen (Verkauf/Wareneingang) als DB-Funktion statt mehrerer API-Aufrufe.
-- [ ] Echte Connector-Synchronisation; Secrets in Supabase Vault.
-- [ ] OAuth-Onboarding: Branche abfragen, wenn sie fehlt.
+- [ ] Connector-Secrets in Supabase Vault statt in `company_records`.
+- [ ] Mobile-Feinschliff (Owner: spaeter).
 
 ## Danach
 

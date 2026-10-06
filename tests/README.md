@@ -2,9 +2,9 @@
 
 | Command | What | Needs |
 |---|---|---|
-| `pnpm test` | Unit: Markdown renderer (incl. XSS), tenant resolution, secret masking, retrieval query | Node |
-| `pnpm test:db` | SQL behaviour of `supabase/migrations/*`: chunk triggers, claim/ask/complete loop, stuck runs, tenant-scoped search, chat, RLS | Docker |
-| `pnpm test:e2e` | API functions → PostgREST → Postgres → embed function → automation SQL → API reads | Docker |
+| `pnpm test` | Unit: Markdown renderer (incl. XSS), tenant resolution, secret masking, retrieval query, monthly series, CSV parser, Stripe signature, checkout prices, plan rules, Sheets URL guard, trend chart rendering | Node |
+| `pnpm test:db` | SQL behaviour of `supabase/migrations/*`: chunk triggers, claim/ask/complete loop, stuck runs, tenant-scoped search, chat, RLS, POS sale / goods receipt, audit log, scheduler, plan permissions | Docker |
+| `pnpm test:e2e` | API → PostgREST → Postgres → embed function → automation SQL → API reads; bookings, plans + webhook, bulk import, Stripe sync (mocked Stripe), audit | Docker |
 
 ## Local Supabase stand-in (one-time)
 
