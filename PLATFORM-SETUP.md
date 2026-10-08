@@ -96,6 +96,7 @@ The UI supports sign-up, sign-in, Google, Microsoft, password reset
 | `NEXUM_INTERNAL_KEY` | any long random string (`openssl rand -hex 32`) | server-to-server calls with `x-nexum-key`; also lets you set plans manually |
 | `STRIPE_SECRET_KEY` | Stripe → Developers → API keys (`sk_live_…` / `sk_test_…`) | **turns billing on** — without it every tenant has all suites (beta) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe → Webhooks → endpoint secret (`whsec_…`) | verifies `/api/stripe-webhook` |
+| `VITE_AUTH_PROVIDERS` | e.g. `google,azure` — only providers enabled in Supabase Auth; empty = email login only | browser (build time) |
 | `PUBLIC_SITE_URL` | `https://www.nexum-intelligence.com` | Checkout return URLs |
 
 Redeploy after changing `VITE_*` (they are baked into the build).

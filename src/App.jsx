@@ -1991,6 +1991,9 @@ function usePlatformUser() {
   return [user, save, ready];
 }
 
+// OAuth buttons only for providers that are enabled in Supabase, e.g. VITE_AUTH_PROVIDERS=google,azure
+const OAUTH_PROVIDERS = String(import.meta.env.VITE_AUTH_PROVIDERS || "").split(",").map((s) => s.trim()).filter(Boolean);
+
 function PlatformAuth({ embedded = false, initialMode = "signin" }) {
   const [mode, setMode] = useState(initialMode);
   const [f, setF] = useState({ name: "", email: "", password: "", company: "", industry: "" });
@@ -2028,11 +2031,11 @@ function PlatformAuth({ embedded = false, initialMode = "signin" }) {
       {!embedded && <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>}
       <h1>{mode === "signup" ? "Create your account" : mode === "reset" ? "Reset password" : "Sign in"}</h1>
       <p>{mode === "signup" ? "Your industry tailors the platform to your business." : mode === "reset" ? "We'll email you a link to set a new password." : "Welcome back."}</p>
-      {mode !== "reset" && <div className="signin-provider-list">
-        <button type="button" onClick={() => oauth("google")}><img src={googleLogo} alt="" /> Continue with Google</button>
-        <button type="button" onClick={() => oauth("azure")}><img src={microsoftLogo} alt="" /> Continue with Microsoft</button>
+      {mode !== "reset" && OAUTH_PROVIDERS.length > 0 && <div className="signin-provider-list">
+        {OAUTH_PROVIDERS.includes("google") && <button type="button" onClick={() => oauth("google")}><img src={googleLogo} alt="" /> Continue with Google</button>}
+        {OAUTH_PROVIDERS.includes("azure") && <button type="button" onClick={() => oauth("azure")}><img src={microsoftLogo} alt="" /> Continue with Microsoft</button>}
       </div>}
-      {mode !== "reset" && <div className="plat-auth-or"><span>or</span></div>}
+      {mode !== "reset" && OAUTH_PROVIDERS.length > 0 && <div className="plat-auth-or"><span>or</span></div>}
       <form onSubmit={submit}>
         {mode === "signup" && <label>Full name<input value={f.name} onChange={(e) => set("name", e.target.value)} /></label>}
         <label>Email<input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} required /></label>
