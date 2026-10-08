@@ -1,0 +1,206 @@
+/* Archived 2026-10-08 — hero, curtain background, particle sphere and logo styles */
+
+.hero-orb {
+  position: relative;
+  min-height: 560px;
+  border: 1px solid var(--line);
+  border-radius: 36px;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 50% 45%, rgba(99, 102, 241, 0.8), transparent 13rem),
+    #111119;
+  background-size: 42px 42px, 42px 42px, auto, auto;
+}
+
+.hero-orb::before {
+  content: "";
+  position: absolute;
+  inset: 14%;
+  border: 1px solid rgba(129, 140, 248, 0.5);
+  border-radius: 50%;
+  box-shadow: 0 0 80px rgba(99, 102, 241, 0.3);
+}
+
+.reference-hero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 500px) 650px;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(46px, 4vw, 72px);
+  width: min(1280px, calc(100% - 64px));
+  min-height: 100vh;
+  padding: 176px 0 132px;
+  background: #03040a;
+}
+
+.reference-hero::before,
+.reference-hero::after {
+  content: "";
+  position: absolute;
+  inset: -22% calc(50% - 84vw) 0;
+  z-index: -2;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse 104% 86% at 60% 34%, #000 0%, #000 56%, rgba(0, 0, 0, 0.72) 70%, transparent 100%);
+  mask-image: radial-gradient(ellipse 104% 86% at 60% 34%, #000 0%, #000 56%, rgba(0, 0, 0, 0.72) 70%, transparent 100%);
+}
+
+.reference-hero::before {
+  background:
+    radial-gradient(ellipse at 104% 44%, rgba(94, 98, 255, 0.14) 0%, rgba(42, 46, 145, 0.1) 18%, transparent 38%),
+    radial-gradient(ellipse at -10% 4%, rgba(82, 88, 236, 0.16) 0%, rgba(28, 31, 104, 0.12) 28%, transparent 54%),
+    linear-gradient(180deg, #03040a 0%, #06070d 46%, #03040a 100%);
+}
+
+.reference-hero::after {
+  z-index: -1;
+  opacity: 0.82;
+  background:
+    linear-gradient(61deg, transparent 0 8%, rgba(72, 76, 220, 0.06) 12%, rgba(126, 132, 255, 0.44) 14.4%, rgba(46, 50, 154, 0.14) 17%, transparent 31%),
+    linear-gradient(64deg, transparent 0 10%, rgba(75, 80, 222, 0.05) 14%, rgba(118, 124, 255, 0.38) 16.2%, rgba(54, 60, 174, 0.12) 19%, transparent 33%),
+    linear-gradient(63deg, transparent 0 16%, rgba(84, 90, 242, 0.06) 20%, rgba(134, 140, 255, 0.4) 22.5%, rgba(50, 56, 160, 0.12) 26%, transparent 42%),
+    linear-gradient(58deg, transparent 0 22%, rgba(55, 60, 180, 0.08) 27%, rgba(124, 130, 255, 0.36) 30%, rgba(52, 58, 180, 0.1) 34%, transparent 52%),
+    linear-gradient(245deg, transparent 0 7%, rgba(110, 116, 255, 0.28) 11%, rgba(42, 46, 148, 0.1) 17%, transparent 36%);
+  filter: blur(2.8px);
+  transform: translate3d(2%, -1%, 0) scale(1.2);
+  transform-origin: 50% 50%;
+  will-change: transform, background-position, opacity;
+}
+
+.reference-hero .hero-copy {
+  position: relative;
+  z-index: 2;
+  max-width: 520px;
+}
+
+.reference-hero h1 {
+  max-width: 520px;
+  margin: 0;
+  color: #ffffff;
+  font-family: "Zalando Sans Expanded", "Poppins", "Inter", sans-serif;
+  font-size: clamp(42px, 3vw, 56px);
+  font-weight: 900;
+  line-height: 1.07;
+  letter-spacing: 0;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.reference-hero .hero-actions {
+  max-width: 560px;
+  margin-top: 30px;
+}
+
+.reference-hero .primary-button {
+  min-width: 226px;
+  min-height: 48px;
+  padding: 0 26px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.reference-hero .secondary-button {
+  min-height: 44px;
+  border-color: rgba(129, 140, 248, 0.34);
+  color: #f2f3ff;
+  background: rgba(10, 11, 22, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.particle-sphere {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 52vw);
+  aspect-ratio: 1;
+  margin-top: 22px;
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.1));
+}
+
+.particle-sphere canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: default;
+}
+
+.reference-hero::after {
+  background-size: 180% 180%, 160% 160%, 145% 145%, 175% 175%, 190% 190%;
+  animation: curtain-flow 6s ease-in-out infinite alternate;
+}
+
+.reference-hero .hero-copy {
+  animation: hero-float 7s ease-in-out infinite alternate;
+}
+
+.particle-sphere {
+  animation: sphere-float 6s ease-in-out infinite alternate;
+}
+
+@keyframes curtain-flow {
+  0% {
+    background-position: -18% 0%, 38% 6%, -10% 16%, 48% -4%, -14% 2%;
+    opacity: 0.62;
+    transform: translate3d(3%, -1.5%, 0) skewX(-1deg) scale(1.12);
+  }
+
+  50% {
+    background-position: 4% 8%, 10% 18%, 12% 3%, 22% 12%, 6% -4%;
+    opacity: 0.86;
+    transform: translate3d(8%, 0.4%, 0) skewX(0.4deg) scale(1.14);
+  }
+
+  100% {
+    background-position: 18% 10%, -16% 18%, 22% -3%, -2% 14%, 20% -8%;
+    opacity: 0.94;
+    transform: translate3d(12%, 2%, 0) skewX(1deg) scale(1.16);
+  }
+}
+
+@keyframes curtain-drift {
+  from {
+    transform: translate3d(1.5%, -2%, 0) scale(1.04);
+  }
+  to {
+    transform: translate3d(12.5%, 2.5%, 0) scale(1.08);
+  }
+}
+
+@keyframes sphere-float {
+  from { transform: translate3d(0, 5px, 0) scale(1); }
+  to { transform: translate3d(0, -9px, 0) scale(1.012); }
+}
+
+/* static hero orb shown instead of the animated particle sphere in lite mode */
+.hero-orb-static {
+  width: min(430px, 44vw);
+  aspect-ratio: 1;
+  justify-self: center;
+  align-self: center;
+  border-radius: 50%;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  background:
+    radial-gradient(circle at 38% 32%, rgba(129, 140, 248, 0.55), rgba(99, 102, 241, 0.15) 55%, transparent 72%),
+    radial-gradient(circle at 64% 70%, rgba(103, 232, 249, 0.26), transparent 58%),
+    #0b1220;
+  box-shadow: 0 0 90px rgba(99, 102, 241, 0.28);
+}
+
+/* ==========================================================================
+   Hero visual — logo always visible, particle sphere only when performance is OK
+   ========================================================================== */
+.hero-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+}
+
+.hero-visual .particle-sphere {
+  grid-area: 1 / 1;
+}
