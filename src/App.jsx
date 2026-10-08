@@ -144,6 +144,28 @@ function navigateTo(to) {
   }
 }
 
+// Beta: sign-in/sign-up stay hidden until VITE_AUTH_OPEN=true; visitors book a call instead.
+// VITE_BOOKING_URL can point to an external scheduler (e.g. a Cal.com event); default is the contact page.
+const AUTH_OPEN = import.meta.env.VITE_AUTH_OPEN === "true";
+const BOOKING_URL = import.meta.env.VITE_BOOKING_URL || "/contact";
+
+function BookCallButton({ className = "primary-button glow-button", children, arrow = false }) {
+  const { t } = useI18n();
+  const content = <>{children || t.btn.bookCall}{arrow && <> <ArrowRight size={18} /></>}</>;
+  if (BOOKING_URL.startsWith("/")) return <Link className={className} to={BOOKING_URL}>{content}</Link>;
+  return <a className={className} href={BOOKING_URL} target="_blank" rel="noreferrer">{content}</a>;
+}
+
+function BetaAccess() {
+  return (
+    <div className="beta-access">
+      <p className="plat-saved"><Zap size={15} /> Private beta: access by invitation.</p>
+      <p>Book a short call and we will set up your platform with you.</p>
+      <BookCallButton arrow />
+    </div>
+  );
+}
+
 function Link({ to, children, onClick, ...props }) {
   return (
     <a
@@ -355,9 +377,7 @@ function HeroSection() {
           {t.hero.statement}
         </p>
         <div className="hero-actions">
-          <a className="primary-button glow-button" href="https://cal.com/" target="_blank" rel="noreferrer">
-            {t.btn.bookCall}
-          </a>
+          <BookCallButton />
         </div>
       </div>
     </section>
@@ -1763,7 +1783,7 @@ function ReadinessTest() {
                 <p>{dict.result.ctaText}</p>
                 {sent && <p className="readiness-thanks"><Check size={15} /> {dict.result.thanks}</p>}
               </div>
-              <a className="primary-button glow-button" href="https://cal.com/" target="_blank" rel="noreferrer">{dict.result.cta} <ArrowRight size={18} /></a>
+              <BookCallButton arrow>{dict.result.cta}</BookCallButton>
             </div>
             <button type="button" className="readiness-restart" onClick={() => { setAnswers({}); setStep(0); setContact({ name: "", email: "", company: "", phone: "", website: "", industry: "", challenge: "", consent: false }); setSent(false); setStage("quiz"); }}>{dict.result.restart}</button>
           </div>
@@ -3837,7 +3857,7 @@ function PlatformPage({ demo = false }) {
     return (<Shell><main><section className="platform-page"><div className="plat-auth"><p className="plat-empty">Loading…</p></div></section></main></Shell>);
   }
   if (!user) {
-    return (<Shell><main><section className="platform-page">{supabaseEnabled ? <PlatformAuth /> : <PlatformSignIn onSignIn={setUser} />}</section></main></Shell>);
+    return (<Shell><main><section className="platform-page">{!AUTH_OPEN ? <div className="plat-auth"><h1>NEXUM Platform</h1><BetaAccess /><button type="button" className="plat-auth-switch" onClick={() => navigateTo("/use-case-demo")}>Just looking? Try the live demo — no account needed</button></div> : supabaseEnabled ? <PlatformAuth /> : <PlatformSignIn onSignIn={setUser} />}</section></main></Shell>);
   }
 
   const firstName = (user.name || "").split(" ")[0] || user.name;
@@ -3997,7 +4017,7 @@ function PotentialAnalysisPage() {
               <p>
                 {t.platform.signinText}
               </p>
-              {supabaseEnabled ? (
+              {!AUTH_OPEN && !authUser ? <BetaAccess /> : supabaseEnabled ? (
                 authUser ? (
                   <div className="signin-done">
                     <p className="plat-saved"><Check size={15} /> Signed in as {authUser.email}</p>
@@ -4295,7 +4315,7 @@ function CTA() {
     <section className="cta">
       <h2>{t.cta.title}</h2>
       <p>{t.footer.tagline}</p>
-      <a className="primary-button" href="https://cal.com/" target="_blank" rel="noreferrer">{t.btn.bookCall} <ArrowRight size={18} /></a>
+      <BookCallButton className="primary-button" arrow />
     </section>
   );
 }

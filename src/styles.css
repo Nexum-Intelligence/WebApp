@@ -4900,3 +4900,6 @@ main > section .asterisk { font-size: clamp(56px, 6vw, 96px) !important; }
 .work-step-panel.is-fly .work-step-slot > .work-step { opacity: 0; transform: translateX(-110%); transition: opacity 0.6s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), background 0.28s ease, box-shadow 0.28s ease; }
 .work-step-panel.is-fly .work-step-slot.is-in > .work-step { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .work-step-panel.is-fly .work-step-slot > .work-step { opacity: 1; transform: none; transition: none; } }
+
+.beta-access { display: grid; gap: 14px; justify-items: start; margin-top: 8px; }
+.beta-access p { margin: 0; }
