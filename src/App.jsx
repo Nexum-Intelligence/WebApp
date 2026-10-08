@@ -845,13 +845,15 @@ function WorkPhasesSection() {
       </div>
       <div className="work-step-panel is-fly" ref={flyRef}>
         {t.works.phases.map((phase) => (
-          <article className="work-step" key={phase.num} tabIndex={0} data-fly>
-            <div>
-              <span>{phase.num}</span>
-              <h3>{phase.title}</h3>
-              <p>{phase.text}</p>
-            </div>
-          </article>
+          <div className="work-step-slot" key={phase.num} data-fly>
+            <article className="work-step" tabIndex={0}>
+              <div>
+                <span>{phase.num}</span>
+                <h3>{phase.title}</h3>
+                <p>{phase.text}</p>
+              </div>
+            </article>
+          </div>
         ))}
       </div>
     </section>

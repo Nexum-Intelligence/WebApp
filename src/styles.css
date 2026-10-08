@@ -4864,3 +4864,39 @@ body.has-scroll-video .reference-hero .hero-copy { text-shadow: 0 2px 24px rgba(
 .work-step-panel.is-fly [data-fly].is-in { opacity: 1; transform: none; }
 @media (max-width: 760px) { .work-step-panel.is-fly [data-fly]:nth-child(odd), .work-step-panel.is-fly [data-fly]:nth-child(even) { transform: translateY(40px); } .work-step-panel.is-fly [data-fly].is-in { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .work-step-panel.is-fly [data-fly] { opacity: 1; transform: none; transition: none; } }
+
+/* ===== Responsive type scale for the marketing pages (2026-10-08) =====
+   One fluid scale for every website section (main > section): grows smoothly with the
+   viewport and caps lower than the original Framer sizes, which were too large on
+   laptops. The platform/demo cockpit (main > .platform-shell) is not affected.
+   !important is needed because the section styles set sizes with class selectors. */
+main > section h1 { font-size: clamp(30px, 2.4vw + 14px, 58px) !important; line-height: 1.08 !important; }
+main > section h2 { font-size: clamp(24px, 1.6vw + 12px, 40px) !important; line-height: 1.15 !important; }
+main > section h3 { font-size: clamp(17px, 0.7vw + 11px, 24px) !important; line-height: 1.25 !important; }
+main > section p { font-size: clamp(14px, 0.35vw + 11px, 17px) !important; }
+main > section .asterisk { font-size: clamp(56px, 6vw, 96px) !important; }
+.impact-section, .build-showcase, .work-steps-section { padding-top: clamp(48px, 7vw, 104px); padding-bottom: clamp(48px, 7vw, 104px); }
+
+/* Systems vs. Tools: tabs, panel and card scale with the device */
+.systems-tools-head { gap: clamp(20px, 3vw, 56px); }
+.systems-tools-copy { gap: clamp(14px, 2vw, 28px); padding-top: clamp(12px, 3vw, 48px); }
+.systems-tools-panel { gap: clamp(14px, 2vw, 32px); padding: clamp(12px, 1.6vw, 24px); }
+.systems-tools-tabs { gap: clamp(10px, 1.6vw, 24px); padding: clamp(12px, 3vw, 48px) 0; }
+.systems-tool-tab { min-height: clamp(42px, 3.6vw, 56px); padding: 0 clamp(12px, 1.4vw, 22px); font-size: clamp(13px, 0.45vw + 10px, 17px) !important; }
+.systems-tools-card { min-height: 0; padding: clamp(14px, 1.8vw, 28px); }
+.systems-tools-card img { max-height: clamp(180px, 30vh, 320px); width: 100%; object-fit: cover; }
+
+/* Work steps: equal full-width frames, text uses the whole width, every frame flies in from the left.
+   The slot is observed (untransformed); the frame inside it moves. */
+.work-step-panel.is-fly { overflow-x: clip; }
+.work-step-panel.is-fly [data-fly],
+.work-step-panel.is-fly [data-fly]:nth-child(odd),
+.work-step-panel.is-fly [data-fly]:nth-child(even) { opacity: 1; transform: none; transition: none; }
+.work-step-panel.is-fly .work-step,
+.work-step-panel.is-fly .work-step:nth-child(odd),
+.work-step-panel.is-fly .work-step:nth-child(even) { margin-left: 0; margin-right: 0; width: 100%; }
+.work-step-panel.is-fly .work-step div,
+.work-step-panel.is-fly .work-step p { max-width: none; }
+.work-step-panel.is-fly .work-step-slot > .work-step { opacity: 0; transform: translateX(-110%); transition: opacity 0.6s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), background 0.28s ease, box-shadow 0.28s ease; }
+.work-step-panel.is-fly .work-step-slot.is-in > .work-step { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .work-step-panel.is-fly .work-step-slot > .work-step { opacity: 1; transform: none; transition: none; } }
