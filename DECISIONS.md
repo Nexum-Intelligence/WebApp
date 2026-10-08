@@ -123,3 +123,13 @@ anderes Projekt). Auftraege und Chats werden per ID adressiert; die Funktionen
 liefern keine E-Mail-Adressen, entfernen Kontakt-/Identitaetsfelder und maskieren
 E-Mail, Telefon und IBAN im Freitext (DSGVO, Datenminimierung). Der
 Supabase-MCP mit Personal Access Token bleibt nur als Notloesung dokumentiert.
+
+## 2026-10-08: Landing-Hero mit scroll-gesteuertem Video statt Partikelkugel
+
+Die Startseite nutzt ein eigenes Video (Roboterfigur, 12 s) als fixierten Hintergrund,
+dessen Abspielposition dem Scrollfortschritt folgt. Das Original (HEVC 10 Bit) laeuft in
+Chrome/Firefox unter Windows nicht zuverlaessig und wurde deshalb nach H.264 mit
+Keyframe alle 4 Frames umkodiert (Desktop 1920px 5,9 MB, Mobil 960px 2 MB, Standbild
+89 KB). Lite-Modus und `prefers-reduced-motion` zeigen das Standbild. Partikelkugel und
+3D-Logo sind in `archive/landing-2026-10-08/` wiederverwendbar abgelegt; der komplette
+vorherige Stand liegt im Git-Tag `archive/landing-2026-10-08`.

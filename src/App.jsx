@@ -26,7 +26,9 @@ import melinaKuehnPortrait from "./assets/founders/melina-kuehn.jpeg";
 import luiseRimolaPortrait from "./assets/founders/luise-rimola.jpeg";
 import googleLogo from "./assets/brand/google-g.svg";
 import microsoftLogo from "./assets/brand/microsoft.svg";
-import nexumModelMesh from "./assets/nexum-model-mesh.json";
+import heroVideo from "./assets/hero/hero-scroll.mp4";
+import heroVideoMobile from "./assets/hero/hero-scroll-mobile.mp4";
+import heroVideoPoster from "./assets/hero/hero-scroll-poster.jpg";
 import agentsDemoUrl from "./assets/spielwieseagentsdemo.html?url";
 import previewInfoUrl from "./assets/preview-info-input.html?url";
 import previewModuleUrl from "./assets/preview-choose-module.html?url";
@@ -268,256 +270,64 @@ const founders = [
   },
 ];
 
-function ParticleSphere() {
-  const canvasRef = useRef(null);
+// Scroll-driven background video (landing page). The page's scroll progress scrubs
+// through the clip; the files are encoded with a keyframe every 4 frames so seeking is
+// smooth. Lite mode / reduced motion show the still frame. The previous hero (particle
+// sphere + 3D logo) is archived in archive/landing-2026-10-08.
+function ScrollVideoBackground() {
+  const videoRef = useRef(null);
   const { lite } = usePerf();
+  const [still] = useState(() => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [src] = useState(() => (typeof window !== "undefined" && window.innerWidth < 768 ? heroVideoMobile : heroVideo));
+  const animate = !lite && !still;
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return undefined;
+    document.body.classList.add("has-scroll-video");
+    return () => document.body.classList.remove("has-scroll-video");
+  }, []);
 
-    const context = canvas.getContext("2d");
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let animationFrame = 0;
-    let width = 0;
-    let height = 0;
-    let dpr = 1;
-    let disposed = false;
-    const pointer = {
-      active: false,
-      x: 0,
-      y: 0,
-      targetX: 0,
-      targetY: 0,
-      strength: 0,
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!animate || !v) return;
+    let raf = 0, current = 0;
+    const target = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      return p * Math.max(0, (v.duration || 0) - 0.05);
     };
-    const modelTriangles = Array.isArray(nexumModelMesh?.triangles) ? nexumModelMesh.triangles : [];
-
-    const pointCount = 7000;
-    const points = Array.from({ length: pointCount }, (_, index) => {
-      const offset = 2 / pointCount;
-      const y = index * offset - 1 + offset / 2;
-      const radius = Math.sqrt(1 - y * y);
-      const angle = index * Math.PI * (3 - Math.sqrt(5));
-      return {
-        x: Math.cos(angle) * radius,
-        y,
-        z: Math.sin(angle) * radius,
-        pulse: (index % 17) / 17,
-      };
-    });
-
-    function syncPointerFromClient(clientX, clientY) {
-      const bounds = canvas.getBoundingClientRect();
-      const nextX = clientX - bounds.left;
-      const nextY = clientY - bounds.top;
-      const inside = nextX >= 0 && nextX <= bounds.width && nextY >= 0 && nextY <= bounds.height;
-      pointer.targetX = Math.min(Math.max(nextX, 0), bounds.width);
-      pointer.targetY = Math.min(Math.max(nextY, 0), bounds.height);
-      pointer.active = inside;
-      if (reducedMotion.matches) {
-        pointer.x = pointer.targetX;
-        pointer.y = pointer.targetY;
-        pointer.strength = inside ? 1 : 0;
-        draw(window.performance?.now?.() ?? 0);
-      }
-    }
-
-    function updatePointer(event) {
-      syncPointerFromClient(event.clientX, event.clientY);
-    }
-
-    function releasePointer() {
-      pointer.active = false;
-      if (reducedMotion.matches) {
-        pointer.strength = 0;
-        draw(window.performance?.now?.() ?? 0);
-      }
-    }
-
-    function resize() {
-      const bounds = canvas.getBoundingClientRect();
-      width = bounds.width;
-      height = bounds.height;
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (!pointer.active) {
-        pointer.x = width / 2;
-        pointer.y = height / 2;
-        pointer.targetX = pointer.x;
-        pointer.targetY = pointer.y;
-      }
-    }
-
-    function projectModelPoint(point, centerX, centerY, modelScale, floatY, sinY, cosY, sinX, cosX) {
-      const x1 = point[0] * cosY - point[2] * sinY;
-      const z1 = point[0] * sinY + point[2] * cosY;
-      const y1 = point[1] * cosX - z1 * sinX;
-      const z2 = point[1] * sinX + z1 * cosX;
-      const perspective = 1.22 / (1.68 - z2 * 0.54);
-      return {
-        x: centerX + x1 * modelScale * perspective,
-        y: centerY + floatY + y1 * modelScale * perspective,
-        z: z2,
-      };
-    }
-
-    function drawModelMesh(time, centerX, centerY, sphereRadius, sinY, cosY, sinX, cosX) {
-      if (!modelTriangles.length) return;
-
-      const modelScale = sphereRadius * 1.68;
-      const floatY = reducedMotion.matches ? 0 : Math.sin(time * 0.0012) * sphereRadius * 0.012;
-      context.save();
-      context.globalCompositeOperation = "lighter";
-
-      const halo = context.createRadialGradient(centerX, centerY + floatY, sphereRadius * 0.08, centerX, centerY + floatY, sphereRadius * 0.68);
-      halo.addColorStop(0, "rgba(42, 104, 255, 0.3)");
-      halo.addColorStop(0.46, "rgba(95, 86, 255, 0.16)");
-      halo.addColorStop(1, "rgba(5, 6, 11, 0)");
-      context.fillStyle = halo;
-      context.beginPath();
-      context.ellipse(centerX, centerY + floatY, sphereRadius * 0.78, sphereRadius * 0.54, -0.08, 0, Math.PI * 2);
-      context.fill();
-
-      const projectedTriangles = modelTriangles.map((triangle) => {
-        const a = projectModelPoint(triangle[0], centerX, centerY, modelScale, floatY, sinY, cosY, sinX, cosX);
-        const b = projectModelPoint(triangle[1], centerX, centerY, modelScale, floatY, sinY, cosY, sinX, cosX);
-        const c = projectModelPoint(triangle[2], centerX, centerY, modelScale, floatY, sinY, cosY, sinX, cosX);
-        return {
-          depth: (a.z + b.z + c.z) / 3,
-          points: [a, b, c],
-        };
-      }).sort((a, b) => a.depth - b.depth);
-
-      context.lineWidth = Math.max(0.55, sphereRadius * 0.0024);
-      context.shadowBlur = sphereRadius * 0.075;
-      context.shadowColor = "rgba(86, 116, 255, 0.82)";
-
-      for (const triangle of projectedTriangles) {
-        const [a, b, c] = triangle.points;
-        const area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        const front = area > 0;
-        const depth = Math.max(0, Math.min(1, (triangle.depth + 0.48) / 0.96));
-        const blue = Math.round(180 + depth * 48);
-        const violet = Math.round(120 + depth * 86);
-        const alpha = front ? 0.34 + depth * 0.36 : 0.08 + depth * 0.12;
-        context.fillStyle = `rgba(${Math.round(44 + depth * 34)}, ${blue}, ${violet}, ${alpha})`;
-        context.strokeStyle = `rgba(216, 228, 255, ${front ? 0.26 + depth * 0.3 : 0.08})`;
-        context.beginPath();
-        context.moveTo(a.x, a.y);
-        context.lineTo(b.x, b.y);
-        context.lineTo(c.x, c.y);
-        context.closePath();
-        context.fill();
-        if (front && depth > 0.18) {
-          context.stroke();
-        }
-      }
-
-      context.restore();
-    }
-
-    function draw(time = 0) {
-      context.clearRect(0, 0, width, height);
-      const cx = width / 2;
-      const cy = height / 2;
-      const sphereRadius = Math.min(width, height) * 0.49;
-      pointer.x += (pointer.targetX - pointer.x) * 0.26;
-      pointer.y += (pointer.targetY - pointer.y) * 0.26;
-      pointer.strength += ((pointer.active ? 1 : 0) - pointer.strength) * 0.18;
-      const cursorX = (pointer.x - cx) / sphereRadius;
-      const cursorY = (pointer.y - cy) / sphereRadius;
-      const baseRotateY = reducedMotion.matches ? 0.75 : time * 0.00018;
-      const baseRotateX = reducedMotion.matches ? -0.28 : -0.28 + Math.sin(time * 0.00024) * 0.08;
-      const rotateY = baseRotateY + cursorX * pointer.strength * 0.52;
-      const rotateX = baseRotateX - cursorY * pointer.strength * 0.38;
-      const sinY = Math.sin(rotateY);
-      const cosY = Math.cos(rotateY);
-      const sinX = Math.sin(rotateX);
-      const cosX = Math.cos(rotateX);
-
-      drawModelMesh(time, cx, cy, sphereRadius, sinY, cosY, sinX, cosX);
-
-      context.save();
-      context.globalCompositeOperation = "lighter";
-
-      for (const point of points) {
-        const x1 = point.x * cosY - point.z * sinY;
-        const z1 = point.x * sinY + point.z * cosY;
-        const y1 = point.y * cosX - z1 * sinX;
-        const z2 = point.y * sinX + z1 * cosX;
-        const perspective = 1.18 / (1.72 - z2 * 0.48);
-        let x = cx + x1 * sphereRadius * perspective;
-        let y = cy + y1 * sphereRadius * perspective;
-        const depth = (z2 + 1) / 2;
-        let interactionImpact = 0;
-        if (pointer.strength > 0.01) {
-          const dx = x - pointer.x;
-          const dy = y - pointer.y;
-          const distance = Math.hypot(dx, dy) || 1;
-          const influence = Math.max(0, 1 - distance / (sphereRadius * 0.42));
-          if (influence > 0 && depth > 0.08) {
-            interactionImpact = influence * influence * pointer.strength;
-            const force = interactionImpact * (52 + depth * 64) * 0.9;
-            const swirl = interactionImpact * (6 + depth * 14);
-            x += (dx / distance) * force;
-            y += (dy / distance) * force;
-            x += (-dy / distance) * swirl;
-            y += (dx / distance) * swirl;
-          }
-        }
-        const shimmer = reducedMotion.matches ? 0 : Math.sin(time * 0.002 + point.pulse * 6.28) * 0.08;
-        const alpha = Math.max(0.05, (0.18 + depth * 0.56 + shimmer) * (1 - interactionImpact * 0.58));
-        const size = (0.42 + depth * 0.72) * (1 - interactionImpact * 0.1);
-
-        context.fillStyle = `rgba(245, 247, 255, ${alpha})`;
-        context.beginPath();
-        context.arc(x, y, size, 0, Math.PI * 2);
-        context.fill();
-      }
-
-      context.restore();
-
-      if (!reducedMotion.matches && !lite) {
-        animationFrame = window.requestAnimationFrame(draw);
-      }
-    }
-
-    resize();
-    draw(0);
-    window.addEventListener("resize", resize);
-    window.addEventListener("pointermove", updatePointer);
-    window.addEventListener("pointerdown", updatePointer);
-    window.addEventListener("mousemove", updatePointer);
-    window.addEventListener("blur", releasePointer);
-    canvas.addEventListener("pointermove", updatePointer);
-    canvas.addEventListener("pointerenter", updatePointer);
-    canvas.addEventListener("pointerdown", updatePointer);
-    canvas.addEventListener("pointerleave", releasePointer);
-    if (!reducedMotion.matches && !lite) {
-      animationFrame = window.requestAnimationFrame(draw);
-    }
-
+    // ease towards the scroll position so fast scrolling still looks fluid
+    const tick = () => {
+      raf = 0;
+      if (!v.duration) return;
+      const t = target();
+      current += (t - current) * 0.25;
+      if (Math.abs(t - current) < 0.01) current = t;
+      if (Math.abs(v.currentTime - current) > 0.005) v.currentTime = current;
+      if (current !== t) raf = requestAnimationFrame(tick);
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(tick); };
+    const onReady = () => { current = target(); v.currentTime = current; };
+    v.addEventListener("loadedmetadata", onReady);
+    if (v.readyState >= 1) onReady();
+    // iOS Safari only allows seeking after the video has been "played" once
+    const unlock = v.play && v.play();
+    if (unlock && unlock.then) unlock.then(() => { v.pause(); current = target(); v.currentTime = current; }).catch(() => {});
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
     return () => {
-      disposed = true;
-      window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("pointermove", updatePointer);
-      window.removeEventListener("pointerdown", updatePointer);
-      window.removeEventListener("mousemove", updatePointer);
-      window.removeEventListener("blur", releasePointer);
-      canvas.removeEventListener("pointermove", updatePointer);
-      canvas.removeEventListener("pointerenter", updatePointer);
-      canvas.removeEventListener("pointerdown", updatePointer);
-      canvas.removeEventListener("pointerleave", releasePointer);
+      cancelAnimationFrame(raf);
+      v.removeEventListener("loadedmetadata", onReady);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
     };
-  }, [lite]);
+  }, [animate]);
 
   return (
-    <div className="particle-sphere" aria-hidden="true">
-      <canvas ref={canvasRef} />
+    <div className="scroll-video" aria-hidden="true">
+      {animate
+        ? <video ref={videoRef} src={src} poster={heroVideoPoster} muted playsInline preload="auto" disablePictureInPicture />
+        : <img src={heroVideoPoster} alt="" />}
+      <div className="scroll-video-shade" />
     </div>
   );
 }
@@ -545,7 +355,6 @@ function HeroSection() {
           </a>
         </div>
       </div>
-      <ParticleSphere />
     </section>
   );
 }
@@ -1474,6 +1283,7 @@ function AboutPage() {
 function HomePageV2() {
   return (
     <Shell>
+      <ScrollVideoBackground />
       <main>
         <HeroSection />
         <TrustImpactSection />
