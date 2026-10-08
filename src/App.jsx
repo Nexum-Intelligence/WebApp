@@ -279,7 +279,12 @@ function ScrollVideoBackground() {
   const { lite } = usePerf();
   const [still] = useState(() => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const [src] = useState(() => (typeof window !== "undefined" && window.innerWidth < 768 ? heroVideoMobile : heroVideo));
-  const animate = !lite && !still;
+  // Scrubbing a paused video is cheap, so only an explicit "Reduce animations" choice
+  // (footer toggle, stored as nexum_perf=lite) or the OS setting shows the still frame —
+  // not the automatic low-frame-rate detection, which often triggers while the video loads.
+  let explicitLite = false;
+  try { explicitLite = lite && window.localStorage.getItem("nexum_perf") === "lite"; } catch (e) {}
+  const animate = !explicitLite && !still;
 
   useEffect(() => {
     document.body.classList.add("has-scroll-video");
@@ -337,7 +342,7 @@ function HeroSection() {
   return (
     <section className="hero reference-hero">
       <div className="hero-copy">
-        <Link className="hero-badge hero-platform-chip" to="/potential-analysis">
+        <Link className="hero-badge hero-platform-chip" to="/use-case-demo">
           <span className="hero-badge-icon"><img src={badgeSpark} alt="" /></span>
           {t.btn.explorePlatform}
         </Link>
