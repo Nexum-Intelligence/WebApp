@@ -735,18 +735,25 @@ function Laurel({ side }) {
 function AwardBadge({ award }) {
   if (award.logo) return <img className="award-logo" src={award.logo} alt={`${award.title} ${award.year} – ${award.programme}`} />;
   return (
+    // colours and type follow the Small Business Awards palette (olive gold, magenta
+    // year tag, rounded sans); shape and mark are NEXUM's own — not the official logo
     <svg className="award-badge" viewBox="0 0 120 120" role="img" aria-label={`${award.title} ${award.year}`}>
       <defs>
-        <linearGradient id="awardGold" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#f4d27a" />
-          <stop offset="100%" stopColor="#b98a2e" />
-        </linearGradient>
+        <clipPath id="awardMedalClip"><circle cx="60" cy="58" r="30" /></clipPath>
       </defs>
       <Laurel side="left" />
       <Laurel side="right" />
-      <circle cx="60" cy="56" r="26" className="award-medal" />
-      <text x="60" y="52" textAnchor="middle" className="award-badge-year">{award.year}</text>
-      <text x="60" y="66" textAnchor="middle" className="award-badge-sub">WINNER</text>
+      <g clipPath="url(#awardMedalClip)">
+        <rect x="30" y="28" width="60" height="60" fill="#b3a425" />
+        <polygon points="30,28 78,28 52,62" fill="#c2b335" />
+        <polygon points="90,40 90,88 58,88" fill="#948519" />
+        <polygon points="30,62 52,62 30,88" fill="#a39522" />
+        <polygon points="52,62 78,28 90,40 58,88" fill="#ab9c24" opacity="0.7" />
+      </g>
+      <text x="60" y="56" textAnchor="middle" className="award-badge-sub">WINNER</text>
+      <text x="60" y="71" textAnchor="middle" className="award-badge-title">AWARD</text>
+      <rect x="66" y="20" width="36" height="15" rx="3" fill="#cb6ea5" />
+      <text x="84" y="31.5" textAnchor="middle" className="award-badge-year">{award.year}</text>
     </svg>
   );
 }
