@@ -4819,3 +4819,5 @@ html[data-lite="1"] .hero-logo-mark {
 .award-badge-sub { fill: #fff; font: 700 9.5px "Poppins", Inter, sans-serif; letter-spacing: 1.2px; }
 .award-badge-year { fill: #6ec2b7; font: 800 14px "Poppins", Inter, sans-serif; }
 @media (max-width: 760px) { .awards-grid { grid-template-columns: 1fr; } .award-card { padding: 18px; gap: 16px; } .award-badge, .award-logo { width: 84px; height: 84px; } .award-card h3 { font-size: 16px; } }
+
+.mobile-menu .mobile-menu-cta { display: inline-flex; justify-content: center; margin-top: 8px; }

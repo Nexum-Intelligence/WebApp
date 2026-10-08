@@ -626,7 +626,7 @@ function Header() {
           <Mail size={18} />
         </Link>
         <LanguageSelector />
-        <Link className="header-cta glow-button" to="/platform">{t.btn.platform}</Link>
+        <Link className="header-cta glow-button" to="/potential-analysis">{t.btn.platform}</Link>
       </div>
       <button className="menu-button" onClick={() => setOpen(true)} aria-label="Open menu">
         <Menu size={22} />
@@ -641,6 +641,7 @@ function Header() {
               {item.label}
             </NavLink>
           ))}
+          <Link className="header-cta glow-button mobile-menu-cta" to="/potential-analysis" onClick={() => setOpen(false)}>{t.btn.platform}</Link>
           <LanguageSelector variant="mobile" />
         </div>
       )}
