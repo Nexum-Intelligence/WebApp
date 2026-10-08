@@ -16,10 +16,10 @@ budget and industry (a 2-chair physio practice needs no 40-page brand book).
 | `inputs.competitorsBrands` | Positioning map axes and differentiation; fall back to profile `competitors`. |
 | profile `valueProp`, `usp`, `positioning`, `vision`, `location`, `website` | Brand promise, proof points, local SEO. |
 | context MARKETING / CUSTOMERS | Campaigns, leads, pipeline → which channel already works. |
-| `nexum_records(email,'campaigns')` → `name, channel, status, budget, leads` | Cost per lead per channel = `budget / leads`; best channel = lowest CPL with ≥ 5 leads. |
-| `nexum_records(email,'products')` → `name, category, price, status` | Hero products for campaigns; price level → premium vs. value positioning. |
-| `nexum_records(email,'customers')` → `stage, value` | Average deal value = Σ value(Customer) / #Customer; ratio Lead→Customer as brand-trust signal. |
-| `nexum_records(email,'sales')` → `productName, revenue, profit` | Top 3 sellers by revenue and by profit — feature the profitable ones. |
+| `nexum_agent_records(run.id, 'campaigns')` → `name, channel, status, budget, leads` | Cost per lead per channel = `budget / leads`; best channel = lowest CPL with ≥ 5 leads. |
+| `nexum_agent_records(run.id, 'products')` → `name, category, price, status` | Hero products for campaigns; price level → premium vs. value positioning. |
+| `nexum_agent_records(run.id, 'customers')` → `stage, value` | Average deal value = Σ value(Customer) / #Customer; ratio Lead→Customer as brand-trust signal. |
+| `nexum_agent_records(run.id, 'sales')` → `productName, revenue, profit` | Top 3 sellers by revenue and by profit — feature the profitable ones. |
 
 Formulas: CPL = campaign budget / leads; lead-to-customer rate = #Customer /
 (#Lead + #Qualified + #Customer); max affordable CPL = avg deal value × gross margin

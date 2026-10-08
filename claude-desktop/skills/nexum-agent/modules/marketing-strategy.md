@@ -14,9 +14,9 @@ for marketing.
 | `inputs.budget` | Channel budget split. |
 | profile `valueProp`, `usp`, `positioning`, `competitors`, `marketRegion`, `goals12m` | Positioning, local scope, goal alignment. |
 | context FINANCE / CUSTOMERS / MARKETING | Revenue, customers, pipeline, campaigns, leads. |
-| `nexum_records(email,'customers')` → `stage, value` | Stage counts: Lead, Qualified, Customer, Churned → current funnel. |
-| `nexum_records(email,'campaigns')` → `channel, budget, leads, status` | CPL per channel. |
-| `nexum_records(email,'sales')` → `productName, revenue, profit, date` | Repeat purchase signals, seasonality by month. |
+| `nexum_agent_records(run.id, 'customers')` → `stage, value` | Stage counts: Lead, Qualified, Customer, Churned → current funnel. |
+| `nexum_agent_records(run.id, 'campaigns')` → `channel, budget, leads, status` | CPL per channel. |
+| `nexum_agent_records(run.id, 'sales')` → `productName, revenue, profit, date` | Repeat purchase signals, seasonality by month. |
 
 Formulas:
 - Funnel rates (stage snapshot, not cohorts): Lead→Qualified = (#Qualified +

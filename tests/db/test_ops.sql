@@ -63,7 +63,7 @@ end $$;
 -- 4. Scheduler: daily tasks once per day for active tenants; Mondays refresh used live modules.
 truncate public.module_runs;
 insert into public.module_runs (email, module_key, module_name, suite_key, status, lang, created_at)
-values ('a@x.de', 'predictive', 'Predictive Intelligence', 'intelligence', 'done', 'de', now() - interval '3 days');
+values ('a@x.de', 'predictive', 'Predictive Intelligence', 'intelligence', 'done', 'de', date_trunc('week', now()) - interval '3 days');
 do $$ declare r jsonb; monday timestamptz := date_trunc('week', now()) + interval '6 hours'; begin
   r := nexum_schedule_recurring(monday);
   assert (r ->> 'daily')::int = 2, 'daily for both active tenants';

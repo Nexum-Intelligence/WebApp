@@ -16,10 +16,10 @@ loops and a staged scaling plan (what to standardise, automate, hire or open nex
 | `inputs.bottleneck` | Starting hypothesis; verify with data (leads, conversion, capacity, delivery, cash, people). |
 | `inputs.goal` | Target (e.g. "2nd location", "1 M€ ARR", "double covers") → scaling path. |
 | `context` revenue, customers, pipeline, marketing, staff, products & margins, open tasks | Growth rate, capacity, margin. |
-| `nexum_records(email,'customers')`, `'sales'` | Cohorts, repeat rate, churn, referral source. |
-| `nexum_records(email,'campaigns')` | CAC per channel. |
-| `nexum_records(email,'staff')`, `'tasks'` | Capacity, owner dependence. |
-| `nexum_records(email,'inventory')`, `'suppliers'` | Supply capacity, minimum orders, dependence. |
+| `nexum_agent_records(run.id, 'customers')`, `'sales'` | Cohorts, repeat rate, churn, referral source. |
+| `nexum_agent_records(run.id, 'campaigns')` | CAC per channel. |
+| `nexum_agent_records(run.id, 'staff')`, `'tasks'` | Capacity, owner dependence. |
+| `nexum_agent_records(run.id, 'inventory')`, `'suppliers'` | Supply capacity, minimum orders, dependence. |
 | `retrieved` go-to-market / business-model results | Assumptions to reuse. |
 
 Compute:

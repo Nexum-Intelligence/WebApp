@@ -17,7 +17,7 @@ must point to the record or KPI that triggered it.
   `purchases` (`supplier`, `qty`, `unitCost`, `status`, `expected`), `sales`,
   `transactions`, `customers` (`stage`, `value`), `campaigns` (`status`, `budget`,
   `leads`), `staff` (`salary`, `status`). Invoices (`total`, `status`, `due`) from
-  `context` or `nexum_records(email,'invoices')` if available.
+  `context` or `nexum_agent_records(run.id, 'invoices')` if available.
 
 ## Ask first if…
 Never ask. Live module — run the scan on whatever data exists and list the data gaps as findings.

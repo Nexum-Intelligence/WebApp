@@ -7,7 +7,7 @@ workload, revenue and staff-cost data.
 
 ## Inputs to use
 - `run.inputs`: `currentTeam` (required), `gaps`, `budget`.
-- `nexum_records('staff')`: `name`, `role`, `department`, `employment`
+- `nexum_agent_records(run.id, 'staff')`: `name`, `role`, `department`, `employment`
   (Full-time/Part-time/Contractor/Intern), `salary` (monthly cost), `status`.
 - `context.text`: revenue, profit, staff cost, revenue trend, open tasks, pipeline.
 - `profile`: `team.teamSize`, `team.keyRoles`, `team.hiringNeeds`, `goals.goals12m`,

@@ -16,9 +16,9 @@ with deadlines (especially legal ones).
 | `inputs.market` | Country/region and sector (DE/AT/CH rules differ — separate them). |
 | `inputs.horizon` | 1 / 3 / 5 years — filter trends by time to impact. |
 | `context` revenue, expenses, COGS, staff, inventory, suppliers | Exposure: energy share of costs, wage share, import share, stock levels. |
-| `nexum_records(email,'transactions')` | Cost categories (energy, rent, wages, fuel, interest) for sensitivity. |
-| `nexum_records(email,'suppliers')`, `'purchases'` | Input price exposure, country of origin. |
-| `nexum_records(email,'staff')` | Minimum-wage exposure, part-time/mini-job share. |
+| `nexum_agent_records(run.id, 'transactions')` | Cost categories (energy, rent, wages, fuel, interest) for sensitivity. |
+| `nexum_agent_records(run.id, 'suppliers')`, `'purchases'` | Input price exposure, country of origin. |
+| `nexum_agent_records(run.id, 'staff')` | Minimum-wage exposure, part-time/mini-job share. |
 | `profile` | Sector, location, offer. |
 
 Compute (exposure, € per year):

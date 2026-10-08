@@ -16,10 +16,10 @@ moves profit most.
 | `inputs.mainCosts` | Cost drivers; split fixed vs. variable. |
 | `inputs.horizon` | 12 months → monthly only; 3 / 5 years → monthly year 1 + annual years. |
 | `context` revenue, expenses, COGS, profit, invoices, inventory, staff, purchasing | Actual baseline, run-rate, seasonality. |
-| `nexum_records(email,'transactions')` | Last 6–12 months by category → fixed/variable split, seasonality. |
-| `nexum_records(email,'products')` | Price and unit cost per product. |
-| `nexum_records(email,'staff')` | Salaries → personnel plan (employer cost DE ≈ gross × 1.21; mini-job ≈ × 1.30; AT ≈ × 1.30). |
-| `nexum_records(email,'inventory')`, `'purchases'` | Stock and purchasing cycle → working capital. |
+| `nexum_agent_records(run.id, 'transactions')` | Last 6–12 months by category → fixed/variable split, seasonality. |
+| `nexum_agent_records(run.id, 'products')` | Price and unit cost per product. |
+| `nexum_agent_records(run.id, 'staff')` | Salaries → personnel plan (employer cost DE ≈ gross × 1.21; mini-job ≈ × 1.30; AT ≈ × 1.30). |
+| `nexum_agent_records(run.id, 'inventory')`, `'purchases'` | Stock and purchasing cycle → working capital. |
 | `profile.basics` | Legal form (tax: Einkommensteuer vs. Körperschaft+Gewerbesteuer), VAT status. |
 
 Compute:

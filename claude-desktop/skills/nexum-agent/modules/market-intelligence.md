@@ -18,8 +18,8 @@ benchmark / drop" — with the € upside and the first move.
 | `inputs.region` | Geography filter for all statistics (Destatis/Statistik Austria/BFS per country). |
 | `inputs.goal` | Weighting: *Validate* → demand evidence; *New market* → entry barriers; *Growth* → opportunity map; *Benchmark* → competitor matrix depth. |
 | `context` revenue, customers, sales, products & margins | Current market share proxy and price reality. |
-| `nexum_records(email,'customers')` | Customer mix by segment/postcode/industry → which SAM slice already converts. |
-| `nexum_records(email,'sales')` / `'products'` | Average order value (AOV), best sellers, real price points. |
+| `nexum_agent_records(run.id, 'customers')` | Customer mix by segment/postcode/industry → which SAM slice already converts. |
+| `nexum_agent_records(run.id, 'sales')` / `'products'` | Average order value (AOV), best sellers, real price points. |
 | `profile.customers`, `profile.product`, `profile.goals` | ICP, offer, ambition level. |
 | `previous_result` | Reuse sources and numbers; update only what changed. |
 

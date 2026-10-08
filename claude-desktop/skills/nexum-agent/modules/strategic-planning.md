@@ -16,9 +16,9 @@ what not to do, and how progress will be measured.
 | `inputs.timeframe` | 6 / 12 months / 3 years → OKR cadence (quarterly OKRs inside annual goals). |
 | `inputs.constraints` | Hard limits: budget, owner hours, staff, capital, regulation. Initiatives must fit. |
 | `context` (all KPI blocks) | Baselines for key results: revenue, profit, customers, pipeline, margin, open tasks. |
-| `nexum_records(email,'tasks')` | Running work — avoid duplicate initiatives; reveal overload. |
-| `nexum_records(email,'staff')` | Capacity (FTE, hours) for initiatives. |
-| `nexum_records(email,'sales')`, `'customers'`, `'campaigns'` | Growth drivers and trends for targets. |
+| `nexum_agent_records(run.id, 'tasks')` | Running work — avoid duplicate initiatives; reveal overload. |
+| `nexum_agent_records(run.id, 'staff')` | Capacity (FTE, hours) for initiatives. |
+| `nexum_agent_records(run.id, 'sales')`, `'customers'`, `'campaigns'` | Growth drivers and trends for targets. |
 | `profile.goals` | Long-term ambition; check alignment. |
 | `retrieved` (SWOT, market, competitor results) | Strategic options; reuse instead of re-analysing. |
 

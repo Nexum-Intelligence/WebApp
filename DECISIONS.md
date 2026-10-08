@@ -114,3 +114,12 @@ POS-Systeme und DATEV haben sehr unterschiedliche bzw. zugangsbeschraenkte APIs;
 ist der CSV-Export der verlaessliche Weg, bis ein konkretes System feststeht.
 Google-Sheets-Abrufe sind auf `https://docs.google.com/spreadsheets/...` begrenzt
 (kein serverseitiger Abruf beliebiger URLs).
+
+## 2026-10-08: Automation ueber eingeschraenkte DB-Rolle statt Supabase-Account-Token
+
+Die Claude-Automation verbindet sich als Postgres-Rolle `nexum_agent`, die nur die
+Agenten-Funktionen ausfuehren darf (kein Tabellenzugriff, keine Migrationen, kein
+anderes Projekt). Auftraege und Chats werden per ID adressiert; die Funktionen
+liefern keine E-Mail-Adressen, entfernen Kontakt-/Identitaetsfelder und maskieren
+E-Mail, Telefon und IBAN im Freitext (DSGVO, Datenminimierung). Der
+Supabase-MCP mit Personal Access Token bleibt nur als Notloesung dokumentiert.

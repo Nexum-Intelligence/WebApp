@@ -18,9 +18,9 @@ run, at which price, and which assumption to test next.
 | `inputs.resources` | Key Resources, Key Partners. |
 | `inputs.stage` | Idea/MVP → assumption-based scenarios; Early revenue/Scaling → data-based. |
 | `context` revenue, expenses, COGS, profit, products & margins, staff | Cost structure and unit economics. |
-| `nexum_records(email,'products')` | Price, unit cost → contribution margin per product. |
-| `nexum_records(email,'sales')`, `'customers'` | Repeat rate, AOV, segment mix. |
-| `nexum_records(email,'suppliers')`, `'staff'` | Key partners, cost of capacity. |
+| `nexum_agent_records(run.id, 'products')` | Price, unit cost → contribution margin per product. |
+| `nexum_agent_records(run.id, 'sales')`, `'customers'` | Repeat rate, AOV, segment mix. |
+| `nexum_agent_records(run.id, 'suppliers')`, `'staff'` | Key partners, cost of capacity. |
 | `profile.product`, `profile.customers`, `profile.goals` | Context and ambition. |
 
 Compute:

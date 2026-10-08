@@ -15,9 +15,9 @@ with proof points and ready-to-use copy for website, offer and pitch.
 | `inputs.problem` | Pains and jobs; verify against reviews, customer data, research. |
 | `inputs.benefit` | Gain creators; translate into measurable outcomes (time, €, risk, status). |
 | `context` customers, sales, products & margins, marketing | Which offers sell, to whom, at what margin. |
-| `nexum_records(email,'products')` | Products & services column; flagship offer. |
-| `nexum_records(email,'customers')` | Segment sizes, best customers (highest revenue, repeat). |
-| `nexum_records(email,'campaigns')` | Which messages/channels converted before. |
+| `nexum_agent_records(run.id, 'products')` | Products & services column; flagship offer. |
+| `nexum_agent_records(run.id, 'customers')` | Segment sizes, best customers (highest revenue, repeat). |
+| `nexum_agent_records(run.id, 'campaigns')` | Which messages/channels converted before. |
 | `profile.product`, `profile.customers`, `profile.goals` | Offer and positioning ambition. |
 | `retrieved` competitor / validation results | Alternatives and evidence. |
 

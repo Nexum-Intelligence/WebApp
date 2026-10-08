@@ -9,14 +9,14 @@ previous plan and replan.
 ## Inputs to use
 | Source | Use |
 |---|---|
-| `inputs.projectName` (required) | Title; search knowledge (`nexum_search(email, '<project words>', 10)`). |
+| `inputs.projectName` (required) | Title; search knowledge (`nexum_agent_search(run.id, '<project words>', 10)`). |
 | `inputs.objectives` | Deliverables → work packages; derive acceptance criteria. |
 | `inputs.deadline` | End date; "Q4 2026" → last working day of the quarter. Compute weeks from run date. |
 | `inputs.stakeholders` | RACI roles, approval points, communication plan. |
-| `nexum_records(email,'staff')` → `name, role, department, employment, status` | Assignees and capacity: full-time 40 h, part-time 20 h, contractor as stated; only status Active. |
-| `nexum_records(email,'tasks')` → `title, priority, done` | Existing tasks related to the project → Kanban "To do/Done"; avoid duplicates. |
+| `nexum_agent_records(run.id, 'staff')` → `name, role, department, employment, status` | Assignees and capacity: full-time 40 h, part-time 20 h, contractor as stated; only status Active. |
+| `nexum_agent_records(run.id, 'tasks')` → `title, priority, done` | Existing tasks related to the project → Kanban "To do/Done"; avoid duplicates. |
 | context FINANCE (profit, expenses), OPEN TASKS | Budget realism and current workload. |
-| `nexum_records(email,'suppliers')` → `name, category, leadTime, reliability` | External dependencies (lead time adds to the schedule). |
+| `nexum_agent_records(run.id, 'suppliers')` → `name, category, leadTime, reliability` | External dependencies (lead time adds to the schedule). |
 | `previous_result` | Baseline plan for progress/variance. |
 
 Formulas:

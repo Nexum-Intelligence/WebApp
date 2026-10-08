@@ -15,7 +15,7 @@ already open. The deliverable is the task list; the Markdown is a short rational
   - `customers` → `stage` Lead/Qualified, `value`, `notes` (no follow-up noted).
   - `products` → `price`, `cost` (margin); `sales` → top products, recent volumes.
   - `campaigns` → active/none; `suppliers` → `leadTime`.
-  - invoices (`total`, `status`, `due`) from `context` or `nexum_records(email,'invoices')` if available.
+  - invoices (`total`, `status`, `due`) from `context` or `nexum_agent_records(run.id, 'invoices')` if available.
 - Unanswered agent alerts and recent results in `retrieved` / `previous_result`.
 - `profile`: empty fields count as profile gaps.
 

@@ -14,9 +14,9 @@ a North Star metric. Reuse existing strategy results instead of restarting.
 | `inputs.constraints` | Budget, team hours, seasonality, legal limits → caps the plan. |
 | `retrieved` chunks from earlier `marketing-strategy`, `go-to-market`, `scaling-strategy` results | Reuse goals, channels and targets. |
 | context FINANCE, CUSTOMERS, MARKETING, OPEN TASKS | Baseline numbers and current workload. |
-| `nexum_records(email,'staff')` → `name, role, department, employment, status` | Owners for initiatives; capacity (part-time = 0.5). |
-| `nexum_records(email,'tasks')` → `title, priority, done` | Avoid duplicates; include open high-priority tasks. |
-| `nexum_records(email,'campaigns')` / `customers` / `sales` | Baselines for KPI targets. |
+| `nexum_agent_records(run.id, 'staff')` → `name, role, department, employment, status` | Owners for initiatives; capacity (part-time = 0.5). |
+| `nexum_agent_records(run.id, 'tasks')` → `title, priority, done` | Avoid duplicates; include open high-priority tasks. |
+| `nexum_agent_records(run.id, 'campaigns')` / `customers` / `sales` | Baselines for KPI targets. |
 
 Formulas:
 - Growth gap = target − baseline; required weekly growth = (target / baseline)^(1/weeks) − 1.

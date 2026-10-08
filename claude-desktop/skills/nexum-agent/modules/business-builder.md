@@ -17,10 +17,10 @@ knows which figures still need proof.
 | `inputs.goal12m` | Roadmap end state and 12-month targets. |
 | `inputs.teamSize` | Personnel plan and founder section. |
 | `context` (all) | Actuals for existing businesses: revenue, costs, margin, customers, staff, stock, invoices. |
-| `nexum_records(email,'products')` | Offer & pricing chapter; unit economics. |
-| `nexum_records(email,'staff')` | Personnel costs (gross + ~21 % employer contributions DE; ~30 % AT). |
-| `nexum_records(email,'suppliers')`, `'purchases'` | Procurement chapter, COGS assumptions. |
-| `nexum_records(email,'customers')`, `'sales'` | Traction evidence, customer structure. |
+| `nexum_agent_records(run.id, 'products')` | Offer & pricing chapter; unit economics. |
+| `nexum_agent_records(run.id, 'staff')` | Personnel costs (gross + ~21 % employer contributions DE; ~30 % AT). |
+| `nexum_agent_records(run.id, 'suppliers')`, `'purchases'` | Procurement chapter, COGS assumptions. |
+| `nexum_agent_records(run.id, 'customers')`, `'sales'` | Traction evidence, customer structure. |
 | `profile` all sections | Legal form, location, founders, goals. |
 | `retrieved` earlier results (market, competitors, SWOT, financial-planning) | Reuse as chapters; do not redo. |
 

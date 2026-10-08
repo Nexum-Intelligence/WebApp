@@ -14,10 +14,10 @@ templates). Realistic for 1 person with 2–5 h/week.
 | `inputs.cadence` (Weekly / 2× per week / Daily) | Posts per week per main channel (Daily = 5–7, story-heavy). |
 | profile `brandValues`, `usp`, `valueProp`, `location`, `positioning` | Pillars, local hashtags, tone. |
 | `retrieved` earlier `brand-marketing` / `marketing-strategy` results | Reuse pillars, tone, campaigns — do not contradict them. |
-| `nexum_records(email,'products')` → `name, category, price, status` | Featured products/services (Active only). |
-| `nexum_records(email,'sales')` → `productName, revenue, profit, date` | Push best-sellers and high-margin items; seasonality. |
-| `nexum_records(email,'campaigns')` → `name, channel, status` | Align posts with active campaigns. |
-| `nexum_records(email,'staff')` → `name, role` | Behind-the-scenes / team content (first names only, consent note). |
+| `nexum_agent_records(run.id, 'products')` → `name, category, price, status` | Featured products/services (Active only). |
+| `nexum_agent_records(run.id, 'sales')` → `productName, revenue, profit, date` | Push best-sellers and high-margin items; seasonality. |
+| `nexum_agent_records(run.id, 'campaigns')` → `name, channel, status` | Align posts with active campaigns. |
+| `nexum_agent_records(run.id, 'staff')` → `name, role` | Behind-the-scenes / team content (first names only, consent note). |
 
 Metrics: engagement rate = (likes + comments + saves + shares) / reach; profile
 → website/booking click rate = link clicks / profile visits; content-sourced

@@ -17,7 +17,7 @@ checklist the owner can start this week.
 | `inputs.fundingNeed` | Amount → programme size fit (micro < 25 k€, 25–125 k€, > 125 k€). |
 | `profile.basics` | Legal form, founding date (start-up < 3/5 years), employee count, revenue → KMU definition (EU: < 250 staff, ≤ 50 M€ revenue or ≤ 43 M€ balance sheet). |
 | `context` revenue, staff, profit | Size class, co-financing capacity (own share 10–50 %). |
-| `nexum_records(email,'staff')` | Headcount for eligibility and hiring programmes. |
+| `nexum_agent_records(run.id, 'staff')` | Headcount for eligibility and hiring programmes. |
 | `retrieved` business-builder / funding-finance results | Capital requirement and use of funds. |
 | `previous_result` | Update deadlines, mark expired programmes. |
 

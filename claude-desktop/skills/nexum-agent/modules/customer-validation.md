@@ -15,8 +15,8 @@ answers), score it now. Outcome: "build / adjust / stop" with the evidence behin
 | `inputs.targetCustomer` | Recruiting criteria for interviewees (role, company size, location, behaviour). |
 | `inputs.channels` | Recruiting and test channels (own customers, LinkedIn, Instagram, local network, associations). |
 | `context` customers, sales, pipeline, marketing | Existing evidence: buyers, repeat rate, conversion, open offers. |
-| `nexum_records(email,'customers')` | Who to interview first (best, lapsed, lost). |
-| `nexum_records(email,'sales')`, `'campaigns'` | Behavioural evidence (what people paid for, which campaign converted). |
+| `nexum_agent_records(run.id, 'customers')` | Who to interview first (best, lapsed, lost). |
+| `nexum_agent_records(run.id, 'sales')`, `'campaigns'` | Behavioural evidence (what people paid for, which campaign converted). |
 | `profile.customers`, `profile.product` | ICP and offer. |
 | `run.answers` / `previous_result` | Interview results if the owner reported them → score them. |
 

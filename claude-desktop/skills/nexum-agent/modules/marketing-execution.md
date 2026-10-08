@@ -14,9 +14,9 @@ with targets the owner can check weekly. Output must be copy-paste usable.
 | `inputs.budget` | Monthly budget; parse "2.000 €" → 2000. |
 | `inputs.offer` | What is promoted → hooks, CTA, landing page. |
 | profile `targetCustomer`, `location`, `usp`, `website`, `brandValues` | Targeting radius, messaging, tone. |
-| `nexum_records(email,'campaigns')` → `name, channel, status, budget, leads` | Historic CPL per channel = `budget / leads`. |
-| `nexum_records(email,'customers')` → `stage, value` | Avg order/deal value (AOV) = Σ value(Customer) / #Customer. |
-| `nexum_records(email,'products')` → `name, price, cost` / `sales` → `revenue, profit` | Gross margin % = (price − cost) / price → break-even ROAS. |
+| `nexum_agent_records(run.id, 'campaigns')` → `name, channel, status, budget, leads` | Historic CPL per channel = `budget / leads`. |
+| `nexum_agent_records(run.id, 'customers')` → `stage, value` | Avg order/deal value (AOV) = Σ value(Customer) / #Customer. |
+| `nexum_agent_records(run.id, 'products')` → `name, price, cost` / `sales` → `revenue, profit` | Gross margin % = (price − cost) / price → break-even ROAS. |
 
 Formulas:
 - CAC = marketing spend / new customers; CPL = spend / leads.

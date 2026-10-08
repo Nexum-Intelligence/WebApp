@@ -17,8 +17,8 @@ bank deck outline.
 | `inputs.currentRevenue` | Stage, bankability, investor fit; compare with context revenue. |
 | `inputs.fundingType` | Preferred route; still show the best alternative. |
 | `context` revenue, expenses, profit, invoices, inventory, staff | Burn, working capital, debt service capacity. |
-| `nexum_records(email,'transactions')` | Monthly cash in/out for the last 6–12 months. |
-| `nexum_records(email,'sales')`, `'customers'` | Traction metrics for investors (growth, retention). |
+| `nexum_agent_records(run.id, 'transactions')` | Monthly cash in/out for the last 6–12 months. |
+| `nexum_agent_records(run.id, 'sales')`, `'customers'` | Traction metrics for investors (growth, retention). |
 | `profile.basics` | Legal form, founding date, location (determines programme eligibility). |
 | `retrieved` financial-planning / business-builder results | Reuse projections. |
 

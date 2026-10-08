@@ -11,13 +11,13 @@ use from Monday. Lean and pragmatic for SMEs — no ISO bureaucracy.
 | `inputs.process` (required) | Process scope: trigger → end result (e.g. "from table order to payment", "patient check-in", "new mandate intake", "order to delivery"). |
 | `inputs.painPoints` | Symptom list → hypotheses for waste and bottleneck. |
 | `inputs.goal` | Optimisation target: time, cost, errors, customer experience. |
-| `nexum_records(email,'staff')` → `role, department, employment, salary, status` | Roles in swimlanes; hourly cost = monthly `salary` / 160 (part-time / 80). |
-| `nexum_records(email,'suppliers')` → `leadTime, reliability, category` | Supply-side steps; lead time variability. |
-| `nexum_records(email,'purchases')` → `status, expected, qty, unitCost` | Order-to-receipt delays (overdue POs). |
-| `nexum_records(email,'inventory')` → `stock, reorder` | Stock-outs as process failures. |
-| `nexum_records(email,'sales')` → `date, qty` | Demand per hour/day → load peaks. |
-| `nexum_records(email,'tasks')` | Recurring manual tasks = automation candidates. |
-| `nexum_search(email,'<process words>',10)` | Existing SOPs, checklists, notes. |
+| `nexum_agent_records(run.id, 'staff')` → `role, department, employment, salary, status` | Roles in swimlanes; hourly cost = monthly `salary` / 160 (part-time / 80). |
+| `nexum_agent_records(run.id, 'suppliers')` → `leadTime, reliability, category` | Supply-side steps; lead time variability. |
+| `nexum_agent_records(run.id, 'purchases')` → `status, expected, qty, unitCost` | Order-to-receipt delays (overdue POs). |
+| `nexum_agent_records(run.id, 'inventory')` → `stock, reorder` | Stock-outs as process failures. |
+| `nexum_agent_records(run.id, 'sales')` → `date, qty` | Demand per hour/day → load peaks. |
+| `nexum_agent_records(run.id, 'tasks')` | Recurring manual tasks = automation candidates. |
+| `nexum_agent_search(run.id, '<process words>',10)` | Existing SOPs, checklists, notes. |
 
 Formulas:
 - Lead time = Σ (process time + wait time) per unit; **flow efficiency** = value-adding

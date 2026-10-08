@@ -17,11 +17,13 @@ Details: `design/02-agent-data-flow.md`. Decisions: `DECISIONS.md`.
 
 ## 1. Supabase
 
-### 1.1 Database (two migrations, in order)
+### 1.1 Database (three migrations, in order)
 
 Supabase → SQL editor → run
 `supabase/migrations/20261006000000_nexum_core.sql`, then
-`supabase/migrations/20261007000000_nexum_ops_billing.sql` (or `supabase db push`).
+`supabase/migrations/20261007000000_nexum_ops_billing.sql`, then
+`supabase/migrations/20261008000000_nexum_agent_role.sql` (restricted role for the
+automation, see claude-desktop/README.md) — or `supabase db push`.
 Both are idempotent and work on a fresh project and on the old tables. The first creates:
 
 - tables `company_profiles`, `company_records`, `module_runs`, `agent_messages`,

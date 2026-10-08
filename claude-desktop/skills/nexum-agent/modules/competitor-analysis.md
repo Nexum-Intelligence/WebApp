@@ -15,9 +15,9 @@ white spaces are. Outcome: a positioning decision ("where we play and how we win
 | `inputs.market` | Category and geography; defines direct vs. indirect competition. |
 | `inputs.yourEdge` | Hypothesis to verify against evidence (reviews, prices, features). |
 | `context` revenue, customers, products & margins, marketing | Own position, pricing power, channel spend. |
-| `nexum_records(email,'products')` | Own prices for the price comparison column. |
-| `nexum_records(email,'customers')` | Where customers come from; lost customers if tracked. |
-| `nexum_records(email,'campaigns')` | Own channels/spend vs. competitors' visible channels. |
+| `nexum_agent_records(run.id, 'products')` | Own prices for the price comparison column. |
+| `nexum_agent_records(run.id, 'customers')` | Where customers come from; lost customers if tracked. |
+| `nexum_agent_records(run.id, 'campaigns')` | Own channels/spend vs. competitors' visible channels. |
 | `profile.product`, `profile.customers` | Offer and ICP. |
 | `previous_result` | Track changes per competitor (new prices, new offers, rating moves). |
 

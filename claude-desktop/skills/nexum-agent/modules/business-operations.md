@@ -14,7 +14,7 @@ Owner inputs only shape the report, they never block it:
 - `inputs.currentTools` → integration notes (what could feed the data; no setup claims).
 - `inputs.teamSize` → revenue per FTE if staff records are missing.
 
-Load records (limit 1000 each) with `nexum_records(email, kind, 1000)`:
+Load records (limit 1000 each) with `nexum_agent_records(run.id, kind, 1000)`:
 | Kind | Fields used |
 |---|---|
 | `transactions` | `date, type (Income/Expense), category, amount` |

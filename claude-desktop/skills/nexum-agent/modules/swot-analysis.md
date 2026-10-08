@@ -14,9 +14,9 @@ with 4–6 prioritised strategic moves (SO, WO, ST, WT), each with € impact an
 | `inputs.knownStrengths` | Verify with data; keep only what evidence supports. |
 | `inputs.knownRisks` | Classify into internal weaknesses vs. external threats. |
 | `context` (all KPI blocks) | Internal factors: margin, growth, customer concentration, staff, stock, open tasks. |
-| `nexum_records(email,'customers')`, `'sales'` | Retention, concentration, seasonality. |
-| `nexum_records(email,'inventory')`, `'suppliers'` | Stock risks, supplier dependence. |
-| `nexum_records(email,'staff')` | Key-person risk, capacity. |
+| `nexum_agent_records(run.id, 'customers')`, `'sales'` | Retention, concentration, seasonality. |
+| `nexum_agent_records(run.id, 'inventory')`, `'suppliers'` | Stock risks, supplier dependence. |
+| `nexum_agent_records(run.id, 'staff')` | Key-person risk, capacity. |
 | `profile` all sections | Goals and positioning. |
 | `retrieved` earlier results (market, competitors, PESTEL) | External factors — reuse rather than re-research. |
 

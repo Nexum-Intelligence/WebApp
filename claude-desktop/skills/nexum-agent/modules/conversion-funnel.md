@@ -12,9 +12,9 @@ clear "fix this first".
 | `inputs.funnel` (required) | The owner's stage list (e.g. "Instagram → website → booking → visit → repeat"). Keep their stage names. |
 | `inputs.channel` | Main entry channel; use channel benchmarks for the top stages. |
 | `inputs.goal` (Awareness / Leads / Sales / Retention) | Which end metric the funnel optimises. |
-| `nexum_records(email,'customers')` → `stage, value, notes` | Counts per CRM stage: Lead → Qualified → Customer → Churned. |
-| `nexum_records(email,'campaigns')` → `channel, budget, leads` | Top-of-funnel volume and CPL. |
-| `nexum_records(email,'sales')` → `productName, qty, revenue, date` | Purchases; repeat signal (same product/customer frequency by month). |
+| `nexum_agent_records(run.id, 'customers')` → `stage, value, notes` | Counts per CRM stage: Lead → Qualified → Customer → Churned. |
+| `nexum_agent_records(run.id, 'campaigns')` → `channel, budget, leads` | Top-of-funnel volume and CPL. |
+| `nexum_agent_records(run.id, 'sales')` → `productName, qty, revenue, date` | Purchases; repeat signal (same product/customer frequency by month). |
 | context INVOICES | Paid vs. outstanding → "payment" stage leak for B2B/services. |
 | profile `website`, `usp`, `targetCustomer` | Landing page review, message-market fit. |
 

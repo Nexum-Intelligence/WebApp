@@ -99,3 +99,20 @@ der Adapter.
 
 Billing/Plan-Durchsetzung, echte Connector-Synchronisation, Umstellung von
 E-Mail auf `user_id` als Mandanten-Schluessel.
+
+## Agent role (2026-10-08)
+
+Migration `20261008000000_nexum_agent_role.sql`: the automation connects as Postgres
+role `nexum_agent` (via the Supabase session pooler and a Postgres MCP server), not with
+a Supabase account token. The role has `USAGE` on `public` and `EXECUTE` only on:
+`nexum_agent_claim`, `nexum_agent_search(ref,…)`, `nexum_agent_records(ref,…)`,
+`nexum_agent_pending_chats`, `nexum_ask`, `nexum_complete`, `nexum_fail`, `nexum_reply_chat`.
+
+- **Scope:** `ref` is the running job or the pending chat message; `nexum_scope_email`
+  resolves the tenant server-side. Finished jobs close the scope.
+- **Minimisation:** no e-mail in any output; record fields matching contact/identity
+  patterns (e-mail, phone, IBAN, address, birth, tax, tokens) are dropped; free text is
+  redacted (`[email]`, `[phone]`, `[iban]`); staff details only for HR modules;
+  connectors never.
+- **Accountability:** `nexum_audit` records `session_user`, so agent changes show as
+  `nexum_agent`.

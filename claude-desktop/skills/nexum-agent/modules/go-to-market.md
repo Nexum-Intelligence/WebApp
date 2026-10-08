@@ -17,9 +17,9 @@ and € revenue to expect.
 | `inputs.channels` | Owner's preferred channels; challenge if CAC/fit is poor. |
 | `inputs.timeline` | Launch date → backwards-planned timeline. |
 | `context` customers, pipeline, marketing, sales, products & margins | Baseline conversion, AOV, margin, current spend. |
-| `nexum_records(email,'campaigns')` | Historic CPL/CAC per channel. |
-| `nexum_records(email,'customers')`, `'sales'` | Lead sources, best segments, repeat behaviour. |
-| `nexum_records(email,'products')` | Prices and margins for offer design. |
+| `nexum_agent_records(run.id, 'campaigns')` | Historic CPL/CAC per channel. |
+| `nexum_agent_records(run.id, 'customers')`, `'sales'` | Lead sources, best segments, repeat behaviour. |
+| `nexum_agent_records(run.id, 'products')` | Prices and margins for offer design. |
 | `profile.customers`, `profile.goals` | ICP and ambition. |
 | `retrieved` value-proposition / competitor results | Messaging and positioning to reuse. |
 
