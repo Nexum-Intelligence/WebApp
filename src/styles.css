@@ -4804,3 +4804,19 @@ html[data-lite="1"] .hero-logo-mark {
 .plat-import label { display: grid; gap: 6px; font-size: 13px; color: #c4c4d6; }
 .plat-import select, .plat-import input[type=file], .plat-recovery select { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(129, 140, 248, 0.3); border-radius: 10px; color: #fff; padding: 9px 12px; }
 @media (max-width: 640px) { .plat-chart-tip { font-size: 11px; } .plat-chart-axis { font-size: 13px; } }
+
+/* --- Awards --- */
+.awards-section { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 40px 0 96px; }
+.awards-section.is-compact { padding: 0 0 86px; }
+.awards-inner > h2 { margin: 24px 0 12px; color: #fff; font-family: "Zalando Sans Expanded", "Poppins", "Inter", sans-serif; font-size: clamp(30px, 3vw, 46px); font-weight: 900; line-height: 1.16; }
+.awards-intro { color: #b8b8cc; font-size: 16px; line-height: 1.6; max-width: 640px; margin: 0 0 32px; }
+.awards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.award-card { display: flex; align-items: center; gap: 22px; padding: 24px 26px; border: 1px solid rgba(244, 210, 122, 0.22); border-radius: 24px; background: radial-gradient(circle at 12% 50%, rgba(244, 210, 122, 0.12), transparent 14rem), linear-gradient(180deg, rgba(18, 19, 35, 0.98), rgba(8, 9, 16, 0.98)); }
+.award-card h3 { margin: 0 0 8px; color: #fff; font-size: 18px; line-height: 1.35; font-weight: 700; }
+.award-card span { color: #c9b37a; font-size: 13px; letter-spacing: 0.02em; }
+.award-badge, .award-logo { flex: none; width: 104px; height: 104px; object-fit: contain; }
+.award-laurel ellipse { fill: url(#awardGold); opacity: 0.9; }
+.award-medal { fill: rgba(244, 210, 122, 0.08); stroke: url(#awardGold); stroke-width: 2; }
+.award-badge-year { fill: #f4d27a; font: 800 15px Inter, system-ui, sans-serif; }
+.award-badge-sub { fill: #d9c48d; font: 700 7.5px Inter, system-ui, sans-serif; letter-spacing: 1.6px; }
+@media (max-width: 760px) { .awards-grid { grid-template-columns: 1fr; } .award-card { padding: 18px; gap: 16px; } .award-badge, .award-logo { width: 84px; height: 84px; } .award-card h3 { font-size: 16px; } }

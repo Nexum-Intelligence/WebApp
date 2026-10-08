@@ -712,6 +712,68 @@ function SectionIntro({ label, title, text, align = "center" }) {
   );
 }
 
+// Awards. `logo` takes the official award artwork once it is available
+// (e.g. import cvFemaleLeaders from "./assets/awards/....png") — until then a
+// NEXUM-styled badge is shown. Do not use Corporate Vision's own logo without their permission.
+const AWARDS = [
+  { title: "Emerging Female Leaders in Agentic AI", year: "2026", region: "", programme: "Small Business Awards 2026", host: "Corporate Vision", logo: null },
+  { title: "Business Innovation Excellence Award", year: "2026", region: "Germany", programme: "Small Business Awards 2026", host: "Corporate Vision", logo: null },
+];
+
+function Laurel({ side }) {
+  // one branch of leaves from bottom-left up to top-left; mirrored for the right side
+  const leaves = Array.from({ length: 7 }, (_, i) => {
+    const deg = 118 + i * 19;
+    const a = deg * (Math.PI / 180);
+    const x = 60 + Math.cos(a) * 44, y = 58 + Math.sin(a) * 44;
+    const rot = deg + 25;
+    return <ellipse key={i} cx={x} cy={y} rx="4.2" ry="10" transform={`rotate(${rot} ${x} ${y})`} />;
+  });
+  return <g className="award-laurel" transform={side === "right" ? "translate(120 0) scale(-1 1)" : undefined}>{leaves}</g>;
+}
+
+function AwardBadge({ award }) {
+  if (award.logo) return <img className="award-logo" src={award.logo} alt={`${award.title} ${award.year} – ${award.programme}`} />;
+  return (
+    <svg className="award-badge" viewBox="0 0 120 120" role="img" aria-label={`${award.title} ${award.year}`}>
+      <defs>
+        <linearGradient id="awardGold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#f4d27a" />
+          <stop offset="100%" stopColor="#b98a2e" />
+        </linearGradient>
+      </defs>
+      <Laurel side="left" />
+      <Laurel side="right" />
+      <circle cx="60" cy="56" r="26" className="award-medal" />
+      <text x="60" y="52" textAnchor="middle" className="award-badge-year">{award.year}</text>
+      <text x="60" y="66" textAnchor="middle" className="award-badge-sub">WINNER</text>
+    </svg>
+  );
+}
+
+function AwardsSection({ compact = false }) {
+  return (
+    <section className={`awards-section ${compact ? "is-compact" : ""}`} aria-labelledby="awards-title">
+      <div className="awards-inner">
+        <span className="outline-pill">Awards</span>
+        <h2 id="awards-title">Recognised for Innovation</h2>
+        <p className="awards-intro">NEXUM Intelligence has been recognised in the Small Business Awards 2026 by Corporate Vision.</p>
+        <div className="awards-grid">
+          {AWARDS.map((a) => (
+            <article className="award-card" key={a.title}>
+              <AwardBadge award={a} />
+              <div>
+                <h3>{a.title} {a.year}{a.region ? ` – ${a.region}` : ""}</h3>
+                <span>{a.programme} · {a.host}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function TrustImpactSection() {
   const { t } = useI18n();
   return (
@@ -1416,6 +1478,7 @@ function HomePageV2() {
       <main>
         <HeroSection />
         <TrustImpactSection />
+        <AwardsSection />
         <WhatWeBuildSection />
         <SecurityComplianceSection />
         <SystemsToolsSection />
@@ -1435,6 +1498,7 @@ function AboutPageV2() {
       <main>
         <AboutIntroSection />
         <FoundersSection />
+        <AwardsSection compact />
         <TrustImpactSection />
         <WhyNexumSection />
         <TestimonialsSection />
