@@ -651,7 +651,7 @@ function RefreshIcon() {
 function WhatWeBuildSection({ standalone = false }) {
   const { t } = useI18n();
   return (
-    <section id="build" className={`build-showcase ${standalone ? "page-section" : ""}`}>
+    <section id="build" className={`build-showcase ${standalone ? "page-section" : "is-compact"}`}>
       <div className="build-title">
         <h2 className="build-heading">
           <span>NEXUM Intelligence Builds</span>
@@ -661,11 +661,13 @@ function WhatWeBuildSection({ standalone = false }) {
         <span className="asterisk" aria-hidden="true">*</span>
       </div>
       <div className="build-layout">
-        <article className="build-visual-card">
-          <span className="outline-pill">{t.build.label.toUpperCase()}</span>
-          <h3>{t.build.title}</h3>
-          <img src={whatWeBuildDashboard} alt="AI operations dashboard visual" />
-        </article>
+        {standalone && (
+          <article className="build-visual-card">
+            <span className="outline-pill">{t.build.label.toUpperCase()}</span>
+            <h3>{t.build.title}</h3>
+            <img src={whatWeBuildDashboard} alt="AI operations dashboard visual" />
+          </article>
+        )}
         <div className="build-service-list">
           {t.build.services.map((service, index) => (
             <article className="build-service-row" key={service.title} tabIndex={0}>
@@ -806,9 +808,29 @@ const howItWorksSteps = [
   },
 ];
 
+// Adds "is-in" once the element scrolls into view (used for fly-in panels).
+function useFlyIn() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const items = [...el.querySelectorAll("[data-fly]")];
+    if (!("IntersectionObserver" in window) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      items.forEach((i) => i.classList.add("is-in"));
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { e.target.classList.add("is-in"); io.unobserve(e.target); }
+    }, { threshold: 0.2, rootMargin: "0px 0px -8% 0px" });
+    items.forEach((i) => io.observe(i));
+    return () => io.disconnect();
+  }, []);
+  return ref;
+}
+
 function WorkPhasesSection() {
   const { t } = useI18n();
-  const workImages = [scenePresenter, sceneAiWindow, abstractSystem, abstractDashboard, sceneConsulting];
+  const flyRef = useFlyIn();
   return (
     <section id="works" className="work-steps-section">
       <span className="outline-pill">{t.works.pill}</span>
@@ -816,15 +838,14 @@ function WorkPhasesSection() {
       <div className="work-actions">
         <Link className="secondary-button" to="/agent-platform">{t.btn.getToKnowAgents}</Link>
       </div>
-      <div className="work-step-panel">
-        {t.works.phases.map((phase, index) => (
-          <article className="work-step" key={phase.num} tabIndex={0}>
+      <div className="work-step-panel is-fly" ref={flyRef}>
+        {t.works.phases.map((phase) => (
+          <article className="work-step" key={phase.num} tabIndex={0} data-fly>
             <div>
               <span>{phase.num}</span>
               <h3>{phase.title}</h3>
               <p>{phase.text}</p>
             </div>
-            <img src={workImages[index] || sceneConsulting} alt={`${phase.title} visual`} />
           </article>
         ))}
       </div>
