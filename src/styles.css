@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@600;700;800;900&family=Zalando+Sans+Expanded:wght@600;900&family=Nunito:wght@700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@600;700;800;900&family=Zalando+Sans+Expanded:wght@600;900&display=swap");
 
 :root {
   --bg: #0a0a0f;
@@ -4811,12 +4811,11 @@ html[data-lite="1"] .hero-logo-mark {
 .awards-inner > h2 { margin: 24px 0 12px; color: #fff; font-family: "Zalando Sans Expanded", "Poppins", "Inter", sans-serif; font-size: clamp(30px, 3vw, 46px); font-weight: 900; line-height: 1.16; }
 .awards-intro { color: #b8b8cc; font-size: 16px; line-height: 1.6; max-width: 640px; margin: 0 0 32px; }
 .awards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.award-card { display: flex; align-items: center; gap: 22px; padding: 24px 26px; border: 1px solid rgba(179, 164, 37, 0.35); border-radius: 24px; background: radial-gradient(circle at 12% 50%, rgba(179, 164, 37, 0.16), transparent 14rem), linear-gradient(180deg, rgba(18, 19, 35, 0.98), rgba(8, 9, 16, 0.98)); }
-.award-card h3 { margin: 0 0 8px; color: #fff; font-family: "Nunito", "Inter", sans-serif; font-size: 19px; line-height: 1.3; font-weight: 800; }
-.award-card span { color: #d4c65a; font-family: "Nunito", "Inter", sans-serif; font-size: 13.5px; font-weight: 700; letter-spacing: 0.01em; }
+.award-card { display: flex; align-items: center; gap: 22px; padding: 24px 26px; border: 1px solid rgba(110, 194, 183, 0.35); border-radius: 24px; background: radial-gradient(circle at 12% 50%, rgba(110, 194, 183, 0.14), transparent 14rem), linear-gradient(180deg, #00132f, #000c1f); }
+.award-card h3 { margin: 0 0 8px; color: #fff; font-family: "Poppins", "Inter", sans-serif; font-size: 18px; line-height: 1.32; font-weight: 700; }
+.award-card span { color: #6ec2b7; font-family: "Poppins", "Inter", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
 .award-badge, .award-logo { flex: none; width: 124px; height: 124px; object-fit: contain; }
-.award-laurel ellipse { fill: #b3a425; opacity: 0.85; }
-.award-badge-year { fill: #fff; font: 900 11px "Nunito", Inter, sans-serif; }
-.award-badge-sub { fill: #fff; font: 900 10.5px "Nunito", Inter, sans-serif; letter-spacing: 0.6px; }
-.award-badge-title { fill: #fff; font: 800 9px "Nunito", Inter, sans-serif; letter-spacing: 1.2px; opacity: 0.92; }
+.award-laurel ellipse { fill: #6ec2b7; opacity: 0.9; }
+.award-badge-sub { fill: #fff; font: 700 9.5px "Poppins", Inter, sans-serif; letter-spacing: 1.2px; }
+.award-badge-year { fill: #6ec2b7; font: 800 14px "Poppins", Inter, sans-serif; }
 @media (max-width: 760px) { .awards-grid { grid-template-columns: 1fr; } .award-card { padding: 18px; gap: 16px; } .award-badge, .award-logo { width: 84px; height: 84px; } .award-card h3 { font-size: 16px; } }
