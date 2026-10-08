@@ -4821,3 +4821,11 @@ html[data-lite="1"] .hero-logo-mark {
 @media (max-width: 760px) { .awards-grid { grid-template-columns: 1fr; } .award-card { padding: 18px; gap: 16px; } .award-badge, .award-logo { width: 84px; height: 84px; } .award-card h3 { font-size: 16px; } }
 
 .mobile-menu .mobile-menu-cta { display: inline-flex; justify-content: center; margin-top: 8px; }
+
+/* auth form embedded in /potential-analysis and its modal */
+.plat-auth-embedded { width: 100%; }
+.plat-auth-card.is-embedded { width: 100%; border: 0; background: none; box-shadow: none; padding: 0; }
+.plat-auth-card.is-embedded h1 { font-size: 20px; margin: 4px 0 6px; }
+.signin-done { display: grid; gap: 14px; justify-items: start; }
+
+.plat-demo-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border: 1px solid rgba(110, 194, 183, 0.4); background: rgba(110, 194, 183, 0.08); color: #d7f0ec; border-radius: 14px; padding: 12px 16px; margin-bottom: 18px; font-size: 14px; }

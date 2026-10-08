@@ -38,6 +38,7 @@ import { supabase, supabaseEnabled, recovery } from "./supabase.js";
 import { api, isLocalId, downloadText, printHtml } from "./platformApi.js";
 import { markdownToHtml, resultText } from "./markdown.js";
 import MonthlyChart from "./MonthlyChart.jsx";
+import { DEMO_USER, installDemoApi } from "./demoApi.js";
 import { monthlySeries, PERIODS, inPeriod, periodMonths } from "./finance.js";
 import { parseCsv, mapHeaders, rowsToRecords } from "./csv.js";
 
@@ -1576,6 +1577,16 @@ const scoreFields = [
 ];
 
 function SignInModal({ onClose, onSignIn }) {
+  if (supabaseEnabled) {
+    return (
+      <div className="login-modal-backdrop" onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
+        <div className="login-modal" role="dialog" aria-modal="true" aria-label="Sign in">
+          <button className="login-modal-close" type="button" onClick={onClose} aria-label="Close sign in"><X size={22} /></button>
+          <PlatformAuth embedded initialMode="signup" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="login-modal-backdrop" onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
       <div className="login-modal" role="dialog" aria-modal="true" aria-labelledby="signin-title">
@@ -1980,8 +1991,8 @@ function usePlatformUser() {
   return [user, save, ready];
 }
 
-function PlatformAuth() {
-  const [mode, setMode] = useState("signin");
+function PlatformAuth({ embedded = false, initialMode = "signin" }) {
+  const [mode, setMode] = useState(initialMode);
   const [f, setF] = useState({ name: "", email: "", password: "", company: "", industry: "" });
   const [err, setErr] = useState(""); const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
@@ -2013,8 +2024,8 @@ function PlatformAuth() {
     } catch (e2) { setErr(String(e2)); }
   };
   return (
-    <div className="plat-auth"><div className="plat-auth-card">
-      <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>
+    <div className={embedded ? "plat-auth-embedded" : "plat-auth"}><div className={`plat-auth-card ${embedded ? "is-embedded" : ""}`}>
+      {!embedded && <span className="outline-pill"><LayoutDashboard size={14} /> NEXUM Platform</span>}
       <h1>{mode === "signup" ? "Create your account" : mode === "reset" ? "Reset password" : "Sign in"}</h1>
       <p>{mode === "signup" ? "Your industry tailors the platform to your business." : mode === "reset" ? "We'll email you a link to set a new password." : "Welcome back."}</p>
       {mode !== "reset" && <div className="signin-provider-list">
@@ -3812,9 +3823,10 @@ function PasswordRecovery() {
   );
 }
 
-function PlatformPage() {
+function PlatformPage({ demo = false }) {
   const { lang } = useI18n();
-  const [user, setUser, authReady] = usePlatformUser();
+  const [authUser, setUser, authReady] = usePlatformUser();
+  const user = demo ? DEMO_USER : authUser;
   const [plan, setPlan] = useState(null);
   const [view, setView] = useState("overview");
   const [runs, setRuns] = useState([]);
@@ -3903,7 +3915,10 @@ function PlatformPage() {
       if (activeRef.current || Date.now() - last > 30000) loadRuns();
       if (Date.now() - lastNotes > 60000) { lastNotes = Date.now(); loadNotifications(); }
     }, 5000);
-    return () => { ok = false; window.clearInterval(iv); window.clearInterval(checkoutTimer); };
+    // back on the tab: refresh right away instead of waiting for the next tick
+    const onVisible = () => { if (!document.hidden) { loadRuns(); loadNotifications(); } };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { ok = false; window.clearInterval(iv); window.clearInterval(checkoutTimer); document.removeEventListener("visibilitychange", onVisible); };
   }, [email]);
 
   // react to agent progress: toast, refresh alerts/profile
@@ -3975,9 +3990,9 @@ function PlatformPage() {
   const runTasks = async () => runModule({ key: "daily-tasks", name: "Daily Tasks", suiteKey: "intelligence", deliverables: [], fields: [] }, {});
 
   const goto = (v) => { setView(v); setNavOpen(false); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
-  const signOut = async () => { await setUser(null); };
+  const signOut = async () => { if (demo) { navigateTo("/potential-analysis"); return; } await setUser(null); };
 
-  if (!authReady) {
+  if (!authReady && !demo) {
     return (<Shell><main><section className="platform-page"><div className="plat-auth"><p className="plat-empty">Loading…</p></div></section></main></Shell>);
   }
   if (!user) {
@@ -4023,6 +4038,13 @@ function PlatformPage() {
   return (
     <Shell>
       <main>
+        {demo && (
+          <SubHero
+            label="Use Case Demonstration"
+            title="Explore the NEXUM Platform Live"
+            text="This is the real NEXUM cockpit with a fictional café. Click through operations, start agent modules, answer their questions and chat with your agent — no account needed."
+          />
+        )}
         <div className="platform-shell">
           <button className="plat-nav-toggle" onClick={() => setNavOpen((o) => !o)}><Menu size={18} /> Menu</button>
           <aside className={`plat-sidebar ${navOpen ? "is-open" : ""}`}>
@@ -4059,11 +4081,17 @@ function PlatformPage() {
 
             <div className="plat-sidebar-foot">
               <div className="plat-plan-mini" onClick={() => goto("subscription")}><span>Plan</span><b>{pkg.name}</b></div>
-              <div className="plat-user"><span>{firstName}</span><button className="plat-ghost plat-signout" onClick={signOut}>Sign out</button></div>
+              <div className="plat-user"><span>{firstName}</span><button className="plat-ghost plat-signout" onClick={signOut}>{demo ? "Exit demo" : "Sign out"}</button></div>
             </div>
           </aside>
 
           <div className="plat-main">
+            {demo && (
+              <div className="plat-demo-banner">
+                <span><b>Live demo</b> — fictional café data. Start modules, answer the agent, chat, record sales: everything works, nothing is saved.</span>
+                <button className="plat-start" onClick={() => navigateTo("/potential-analysis")}>Create your account <ArrowRight size={15} /></button>
+              </div>
+            )}
             <div className="plat-topbar"><NotificationBell notifications={notifications} onRead={markNoteRead} onReadAll={markAllNotesRead} goto={goto} /></div>
             {toast && <div className={`plat-toast plat-toast-${toast.tone}`}>{toast.tone === "ok" ? <Check size={16} /> : <span className="plat-toast-dot" />} {toast.text}</div>}
             {content}
@@ -4071,8 +4099,8 @@ function PlatformPage() {
         </div>
       </main>
       <AgentChat user={user} view={view} />
-      <PasswordRecovery />
-      {user.needsOnboarding && supabaseEnabled && <Onboarding user={user} />}
+      {!demo && <PasswordRecovery />}
+      {!demo && user.needsOnboarding && supabaseEnabled && <Onboarding user={user} />}
     </Shell>
   );
 }
@@ -4080,7 +4108,9 @@ function PlatformPage() {
 function PotentialAnalysisPage() {
   const { t } = useI18n();
   const [loginOpen, setLoginOpen] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
+  const [authUser] = usePlatformUser();
+  const [mockSignedIn, setSignedIn] = useState(false);
+  const signedIn = supabaseEnabled ? !!authUser : mockSignedIn;
   const [score, setScore] = useState(76);
   const [resultText, setResultText] = useState("Complete the fields and sign in to unlock your autonomous growth potential.");
   const analysisPath = useLocationPath().split("#")[0];
@@ -4126,21 +4156,34 @@ function PotentialAnalysisPage() {
               <p>
                 {t.platform.signinText}
               </p>
-              <div className="signin-provider-list">
-                <button type="button" onClick={() => navigateTo("/platform")}><img src={googleLogo} alt="" /> {t.platform.google}</button>
-                <button type="button" onClick={() => navigateTo("/platform")}><img src={microsoftLogo} alt="" /> {t.platform.microsoft}</button>
-              </div>
-              <form className="signin-inline-form" onSubmit={(event) => { event.preventDefault(); navigateTo("/platform"); }}>
-                <label>
-                  {t.platform.email}
-                  <input type="email" placeholder="you@company.com" />
-                </label>
-                <label>
-                  {t.platform.password}
-                  <input type="password" placeholder={t.platform.password} />
-                </label>
-                <button className="primary-button glow-button" type="submit">{t.btn.signIn}</button>
-              </form>
+              {supabaseEnabled ? (
+                authUser ? (
+                  <div className="signin-done">
+                    <p className="plat-saved"><Check size={15} /> Signed in as {authUser.email}</p>
+                    <button className="primary-button glow-button" type="button" onClick={() => navigateTo("/platform")}>Open your platform <ArrowRight size={18} /></button>
+                  </div>
+                ) : <PlatformAuth embedded />
+              ) : (
+                <>
+                  <div className="signin-provider-list">
+                    <button type="button" onClick={() => navigateTo("/platform")}><img src={googleLogo} alt="" /> {t.platform.google}</button>
+                    <button type="button" onClick={() => navigateTo("/platform")}><img src={microsoftLogo} alt="" /> {t.platform.microsoft}</button>
+                  </div>
+                  <form className="signin-inline-form" onSubmit={(event) => { event.preventDefault(); navigateTo("/platform"); }}>
+                    <label>
+                      {t.platform.email}
+                      <input type="email" placeholder="you@company.com" />
+                    </label>
+                    <label>
+                      {t.platform.password}
+                      <input type="password" placeholder={t.platform.password} />
+                    </label>
+                    <button className="primary-button glow-button" type="submit">{t.btn.signIn}</button>
+                  </form>
+                  <button type="button" className="plat-auth-switch" onClick={() => navigateTo("/platform")}>New here? Create an account</button>
+                </>
+              )}
+              <button type="button" className="plat-auth-switch" onClick={() => navigateTo("/use-case-demo")}>Just looking? Try the live demo — no account needed</button>
             </article>
 
             <article className="score-side">
@@ -4190,37 +4233,21 @@ function PotentialAnalysisPage() {
           </div>
         </section>
       </main>
-      {loginOpen && <SignInModal onClose={() => setLoginOpen(false)} onSignIn={signIn} />}
+      {loginOpen && !(supabaseEnabled && authUser) && <SignInModal onClose={() => setLoginOpen(false)} onSignIn={signIn} />}
     </Shell>
   );
 }
 
+// The real platform UI on fictional data, no login. /api/* is answered in the
+// browser by src/demoApi.js while this is mounted.
+function DemoPlatform() {
+  useState(() => installDemoApi()); // during render, so it is active before child effects fetch
+  useEffect(() => installDemoApi(), []); // (re-)install after StrictMode remounts; returns the uninstall
+  return <PlatformPage demo />;
+}
+
 function UseCaseDemoPage() {
-  return (
-    <Shell>
-      <main>
-        <SubHero
-          label="Use Case Demonstration"
-          title="Discover a Live Example of Autonomous AI Agents in Action"
-          text="A focused demonstration area for showing how NEXUM agents can create a USP, evaluate positioning and turn strategy into execution-ready assets."
-        />
-        <section className="section use-case-section">
-          <article className="use-case-card">
-            <span className="outline-pill">COMING SOON</span>
-            <h2>Autonomous USP Builder</h2>
-            <p>
-              This page is prepared for a live example where analysis, creation and execution
-              agents work together to generate a business USP, supporting positioning,
-              campaign direction and implementation tasks.
-            </p>
-            <Link className="primary-button" to="/agent-platform">
-              View the Agent Platform <ArrowRight size={18} />
-            </Link>
-          </article>
-        </section>
-      </main>
-    </Shell>
-  );
+  return <DemoPlatform />;
 }
 
 const blogImages = [scenePresenter, sceneAiWindow, abstractDashboard, abstractSystem];
