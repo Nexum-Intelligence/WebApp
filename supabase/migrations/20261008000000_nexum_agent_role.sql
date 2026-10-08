@@ -183,6 +183,10 @@ begin
   end loop;
 end $$;
 
+-- trigger functions: not callable directly anyway, but keep the grant list clean
+revoke all on function public.nexum_audit(), public.nexum_chunk_record(), public.nexum_chunk_profile(),
+                       public.nexum_chunk_run(), public.nexum_touch() from public, anon, authenticated, nexum_agent;
+
 -- functions created later must not leak to the agent role by default
 alter default privileges in schema public revoke execute on functions from public;
 
