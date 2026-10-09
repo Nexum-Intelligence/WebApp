@@ -11,6 +11,8 @@
 // Any channel whose env vars are missing is skipped gracefully, so the test
 // always works even before the backend is fully configured.
 
+import { customerConfirmation, salesNotification } from "../lib/email.js";
+
 const DAYS = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday" };
 const SLOTS = ["08:00–10:00", "10:00–12:00", "12:00–14:00", "14:00–16:00", "16:00–18:00"];
 const clip = (v, n) => (v == null || v === "" ? null : String(v).slice(0, n));
@@ -22,6 +24,15 @@ export function normalizeAvailability(a) {
   const slots = SLOTS.filter((s) => Array.isArray(a.slots) && a.slots.includes(s));
   const timezone = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)*$/.test(String(a.timezone || "")) ? String(a.timezone).slice(0, 64) : null;
   return { days, slots, timezone };
+}
+
+async function sendMail(key, mail) {
+  const r = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify(mail),
+  });
+  return r.ok ? { ok: true } : { ok: false, error: await r.text() };
 }
 
 export default async function handler(req, res) {
@@ -107,15 +118,8 @@ export default async function handler(req, res) {
           ? dimensions.map((d) => `${d.label}: ${d.pct}%`).join("<br>")
           : "";
         const esc = (s) => String(s == null ? "-" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-        const html = slotsWanted ? `
-          <h2>New call request — ${esc(record.topic)}</h2>
-          <p><b>${esc(record.name)}</b> · ${esc(record.company)}<br>
-          ✉ ${esc(record.email)} &nbsp; ☎ ${esc(record.phone)}</p>
-          <p><b>Preferred days:</b> ${slotsWanted.days.map((d) => DAYS[d]).join(", ")}<br>
-          <b>Preferred times:</b> ${slotsWanted.slots.join(", ")} (${esc(slotsWanted.timezone || "timezone unknown")})</p>
-          <p><b>Budget:</b> ${esc(record.budget)}</p>
-          <p><b>Project details:</b><br>${esc(record.challenge)}</p>
-          <hr><p style="color:#888;font-size:12px">lang: ${esc(lang)} · source: contact</p>` : `
+        const callMail = slotsWanted && salesNotification({ ...record, details: record.challenge, days: slotsWanted.days, slots: slotsWanted.slots, timezone: slotsWanted.timezone });
+        const html = callMail ? callMail.html : `
           <h2>New Readiness Lead — ${esc(score)}% (${esc(level)})</h2>
           <p><b>${esc(record.name)}</b> · ${esc(record.company)}<br>
           ✉ ${esc(record.email)} &nbsp; ☎ ${esc(record.phone)}<br>
@@ -124,21 +128,30 @@ export default async function handler(req, res) {
           <p>${dimLines}</p>
           <p><b>Challenge / goal:</b><br>${esc(record.challenge)}</p>
           <hr><p style="color:#888;font-size:12px">lang: ${esc(lang)} · source: ${esc(source)}</p>`;
-        const r = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND}` },
-          body: JSON.stringify({
-            from: FROM,
-            to: [SALES],
-            reply_to: record.email,
-            subject: slotsWanted ? `📞 Call request: ${record.company || record.name}` : `🔥 Readiness Lead: ${record.company || record.name} — ${score}%`,
-            html,
-          }),
+        const sent = await sendMail(RESEND, {
+          from: FROM,
+          to: [SALES],
+          reply_to: record.email,
+          subject: callMail ? callMail.subject : `🔥 Readiness Lead: ${record.company || record.name} — ${score}%`,
+          html,
         });
-        out.emailed = r.ok;
-        if (!r.ok) out.emailError = await r.text();
+        out.emailed = sent.ok;
+        if (!sent.ok) out.emailError = sent.error;
       } catch (e) {
         out.emailError = String(e);
+      }
+    }
+
+    // 3) Confirmation to the customer — only from a verified sender domain (resend.dev
+    //    may only deliver to the account owner). Failure does not fail the request.
+    if (slotsWanted && RESEND && process.env.LEAD_FROM_EMAIL) {
+      try {
+        const mail = customerConfirmation({ name: record.name, topic: record.topic, days: slotsWanted.days, slots: slotsWanted.slots, timezone: slotsWanted.timezone, lang: record.lang });
+        const sent = await sendMail(RESEND, { from: FROM, to: [record.email], ...(SALES ? { reply_to: SALES } : {}), subject: mail.subject, html: mail.html });
+        out.confirmed = sent.ok;
+        if (!sent.ok) console.error("[lead] confirmation failed", sent.error);
+      } catch (e) {
+        console.error("[lead] confirmation failed", e);
       }
     }
 
