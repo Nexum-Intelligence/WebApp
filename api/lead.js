@@ -5,8 +5,8 @@
 //   SUPABASE_URL                e.g. https://xxxx.supabase.co
 //   SUPABASE_SERVICE_ROLE_KEY   Supabase → Project Settings → API → service_role key (server-side only!)
 //   RESEND_API_KEY              Resend → API Keys
-//   SALES_EMAIL                 where leads should be emailed, e.g. vertrieb@nexumintelligence.com
-//   LEAD_FROM_EMAIL             verified sender, e.g. "NEXUM Readiness <noreply@nexumintelligence.com>"
+//   SALES_EMAIL                 where leads should be emailed, e.g. nexumintelligence@outlook.com
+//   LEAD_FROM_EMAIL             verified sender, e.g. "NEXUM <noreply@nexum-intelligence.com>" (needs the domain verified in Resend)
 //
 // Any channel whose env vars are missing is skipped gracefully, so the test
 // always works even before the backend is fully configured.

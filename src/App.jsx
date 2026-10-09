@@ -4224,7 +4224,7 @@ function ContactPage() {
       setState("sent");
     } catch (e) {
       setState("error");
-      setErr("Sending failed. Please try again or write to info@nexum-intelligence.com.");
+      setErr("Sending failed. Please try again or write to nexumintelligence@outlook.com.");
     }
   }
 
@@ -4279,7 +4279,7 @@ function ContactPage() {
           <aside className="contact-card">
             <h2>Ready to Build Your AI Advantage?</h2>
             <p>Stop managing tasks. Start managing systems.</p>
-            <a href="mailto:info@nexum-intelligence.com"><Mail size={20} />info@nexum-intelligence.com</a>
+            <a href="mailto:nexumintelligence@outlook.com"><Mail size={20} />nexumintelligence@outlook.com</a>
             <Link className="secondary-button" to="/use-case-demo">Try the live demo</Link>
           </aside>
         </section>
@@ -4300,7 +4300,7 @@ function LegalPage({ type }) {
         ["5. Data retention", "Personal information is stored only as long as necessary or as required by law."],
         ["6. Security", "Reasonable technical and organizational measures are in place to protect your information."],
         ["7. Your rights", "You may request a copy of your data, ask for corrections or deletion, and withdraw consent."],
-        ["8. Contact", "If you have questions, contact info@nexum-intelligence.com."],
+        ["8. Contact", "If you have questions, contact nexumintelligence@outlook.com."],
       ]
     : [
         ["1. What are cookies?", "Cookies are small text files stored on your device when you visit a website."],
@@ -4309,7 +4309,7 @@ function LegalPage({ type }) {
         ["4. Managing cookies", "You can control or disable cookies through your browser settings."],
         ["5. Consent", "By continuing to use this website, you consent to the use of cookies as outlined in this policy."],
         ["6. Updates", "This Cookie Policy may be updated occasionally."],
-        ["7. Contact", "If you have questions, contact info@nexum-intelligence.com."],
+        ["7. Contact", "If you have questions, contact nexumintelligence@outlook.com."],
       ];
 
   return (
