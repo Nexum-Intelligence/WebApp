@@ -4282,6 +4282,7 @@ function ContactPage() {
             <h2>Ready to Build Your AI Advantage?</h2>
             <p>Stop managing tasks. Start managing systems.</p>
             <a href="mailto:nexumintelligence@outlook.com"><Mail size={20} />nexumintelligence@outlook.com</a>
+            <a href={`tel:${COMPANY.phoneHref}`}><Phone size={20} />{COMPANY.phone}</a>
             <Link className="secondary-button" to="/use-case-demo">Try the live demo</Link>
           </aside>
         </section>

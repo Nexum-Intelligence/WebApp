@@ -10,7 +10,15 @@ export const COMPANY = {
   country: "Deutschland",
   partners: "Melina Kühn, Luise Rimola",
   email: "nexumintelligence@outlook.com",
+  phone: "+49 177 2144200",
+  phoneHref: "+491772144200",
+  members: [
+    ["Melina Kühn", "Geitauer Straße 4, 81379 München"],
+    ["Luise Rimola", "Freistraße 49, 89191 Nellingen"],
+  ],
 };
+
+const MEMBERS = COMPANY.members.map(([n, a]) => `${n}, ${a}`);
 
 const ADDRESS_DE = `${COMPANY.name}, ${COMPANY.street}, ${COMPANY.city}`;
 const ADDRESS_EN = `${COMPANY.name}, ${COMPANY.street}, ${COMPANY.city}, Germany`;
@@ -24,9 +32,9 @@ export const LEGAL = {
       lede: "Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG).",
       sections: [
         ["Anbieter", [`${COMPANY.name}`, `${COMPANY.street}`, `${COMPANY.city}`, COMPANY.country]],
-        ["Vertreten durch", [`Die Gesellschafterinnen ${COMPANY.partners}.`]],
-        ["Kontakt", [`E-Mail: ${COMPANY.email}`, "Kontaktformular: nexum-intelligence.com/contact"]],
-        ["Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV", [`${COMPANY.partners}, Anschrift wie oben.`]],
+        ["Gesellschafterinnen (vertretungsberechtigt)", [MEMBERS]],
+        ["Kontakt", [`Telefon: ${COMPANY.phone}`, `E-Mail: ${COMPANY.email}`, "Kontaktformular: nexum-intelligence.com/contact"]],
+        ["Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV", [MEMBERS]],
         ["Verbraucherstreitbeilegung", ["Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen."]],
         ["Haftung für Inhalte", ["Wir erstellen die Inhalte dieser Website mit Sorgfalt. Für die Richtigkeit, Vollständigkeit und Aktualität können wir jedoch keine Gewähr übernehmen. Als Diensteanbieter sind wir für eigene Inhalte nach den allgemeinen Gesetzen verantwortlich. Wir sind nicht verpflichtet, übermittelte oder gespeicherte fremde Informationen zu überwachen; bei Bekanntwerden von Rechtsverletzungen entfernen wir entsprechende Inhalte umgehend."]],
         ["Haftung für Links", ["Unsere Website enthält Links zu Websites Dritter, auf deren Inhalte wir keinen Einfluss haben. Für diese Inhalte ist der jeweilige Anbieter verantwortlich. Bei Bekanntwerden von Rechtsverletzungen entfernen wir solche Links umgehend."]],
@@ -38,7 +46,7 @@ export const LEGAL = {
       lede: "Hier erfahren Sie, welche personenbezogenen Daten wir verarbeiten, wenn Sie unsere Website und unsere Plattform nutzen, wofür wir sie verwenden und welche Rechte Sie haben.",
       sections: [
         ["1. Verantwortlicher", [
-          `${ADDRESS_DE}, vertreten durch die Gesellschafterinnen ${COMPANY.partners}. E-Mail: ${COMPANY.email}.`,
+          `${ADDRESS_DE}, vertreten durch die Gesellschafterinnen ${COMPANY.partners}. Telefon: ${COMPANY.phone}, E-Mail: ${COMPANY.email}.`,
           "Ein Datenschutzbeauftragter ist nicht benannt, da hierzu keine gesetzliche Pflicht besteht. Wenden Sie sich bei Fragen zum Datenschutz direkt an die oben genannte Adresse.",
         ]],
         ["2. Hosting und Server-Logfiles", [
@@ -119,9 +127,9 @@ export const LEGAL = {
       lede: "Information pursuant to § 5 of the German Digital Services Act (DDG). The German version is legally binding.",
       sections: [
         ["Provider", [`${COMPANY.name}`, `${COMPANY.street}`, `${COMPANY.city}`, "Germany"]],
-        ["Represented by", [`The partners ${COMPANY.partners}.`]],
-        ["Contact", [`E-mail: ${COMPANY.email}`, "Contact form: nexum-intelligence.com/contact"]],
-        ["Responsible for content (§ 18 (2) MStV)", [`${COMPANY.partners}, address as above.`]],
+        ["Partners (authorised to represent)", [MEMBERS]],
+        ["Contact", [`Phone: ${COMPANY.phone}`, `E-mail: ${COMPANY.email}`, "Contact form: nexum-intelligence.com/contact"]],
+        ["Responsible for content (§ 18 (2) MStV)", [MEMBERS]],
         ["Consumer dispute resolution", ["We are neither willing nor obliged to take part in dispute resolution proceedings before a consumer arbitration board."]],
         ["Liability for content and links", ["We create the content of this website with care but cannot guarantee that it is correct, complete and up to date. We are not responsible for the content of external websites we link to; if we become aware of any infringement, we will remove the link immediately."]],
         ["Copyright", ["The content of this website (texts, graphics, videos, logo) is protected by German copyright law. Any use beyond the limits of copyright law requires our written consent."]],
@@ -132,7 +140,7 @@ export const LEGAL = {
       lede: "This policy explains which personal data we process when you use our website and platform, why we do so, and what rights you have. The German version is legally binding.",
       sections: [
         ["1. Controller", [
-          `${ADDRESS_EN}, represented by the partners ${COMPANY.partners}. E-mail: ${COMPANY.email}.`,
+          `${ADDRESS_EN}, represented by the partners ${COMPANY.partners}. Phone: ${COMPANY.phone}, e-mail: ${COMPANY.email}.`,
           "We have not appointed a data protection officer as we are not legally required to. Please send any privacy questions to the address above.",
         ]],
         ["2. Hosting and server log files", [
