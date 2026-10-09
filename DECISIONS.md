@@ -144,3 +144,13 @@ bestaetigt. Die Anfrage geht ueber `/api/lead` in die Tabelle `leads`
 (Migration `20261009000000_nexum_leads.sql`, kein Browserzugriff) und optional per
 Resend an `SALES_EMAIL`. Ist ein Kanal konfiguriert, aber nichts zugestellt, antwortet
 die API mit 502, damit keine Anfrage still verloren geht.
+
+## 2026-10-09: Rechtstexte im Code, Schriften selbst gehostet
+
+Impressum, Datenschutzerklaerung und Cookie-Hinweise liegen in `src/legal.js` (Deutsch
+verbindlich, Englisch fuer alle anderen Sprachen) und beschreiben genau die tatsaechliche
+Verarbeitung (Vercel, Supabase eu-west-1, Resend EU, Microsoft-Postfach, Anthropic fuer die
+Plattform, Stripe). Aendert sich ein Dienst, muss dieser Text mitgeaendert werden.
+Google Fonts werden nicht mehr von Google geladen, sondern liegen als woff2 unter
+`src/assets/fonts/` (`src/fonts.css`); kein Cookie-Banner noetig, da nur technisch
+notwendiger localStorage (§ 25 Abs. 2 Nr. 2 TDDDG).

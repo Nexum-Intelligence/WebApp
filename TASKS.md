@@ -51,6 +51,9 @@
 - [ ] Migration `20261009000000_nexum_leads.sql` live ausfuehren; optional `RESEND_API_KEY`,
   `SALES_EMAIL`, `LEAD_FROM_EMAIL` in Vercel setzen (E-Mail bei neuer Anfrage).
 
+- [ ] AV-Vertraege (DPA) mit Vercel, Supabase, Resend und Anthropic abschliessen; USt-IdNr. und
+  ggf. Registernummer ins Impressum (`src/legal.js`), sobald vorhanden; Rechtstexte gegenpruefen lassen.
+
 ## Danach
 
 - [ ] Formular-Backend oder Integrationsziel klaeren.
@@ -165,6 +168,9 @@
 
 - [x] Beta: Login ausgeblendet, Book-a-call -> Kontaktformular mit Wunsch-Wochentagen und
   Zeitfenstern (`/api/lead`, Migration `20261009000000_nexum_leads.sql`, Unit-Tests `tests/unit/lead.test.mjs`).
+
+- [x] Impressum, Datenschutz, Cookie-Hinweise (DE/EN, `src/legal.js`), Schriften selbst gehostet,
+  gebrandete Mails an Kunde und Team (`lib/email.js`).
 
 ## Blockiert
 

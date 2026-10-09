@@ -26,6 +26,7 @@ import melinaKuehnPortrait from "./assets/founders/melina-kuehn.jpeg";
 import luiseRimolaPortrait from "./assets/founders/luise-rimola.jpeg";
 import googleLogo from "./assets/brand/google-g.svg";
 import microsoftLogo from "./assets/brand/microsoft.svg";
+import { COMPANY, legalText } from "./legal.js";
 import heroVideo from "./assets/hero/hero-scroll.mp4";
 import heroVideoMobile from "./assets/hero/hero-scroll-mobile.mp4";
 import heroVideoPoster from "./assets/hero/hero-scroll-poster.jpg";
@@ -504,8 +505,9 @@ function Footer() {
                 {t.footer.links[i] || link.label}
               </Link>
             ))}
-            <Link to="/legal/privacy-policy">Privacy Policy</Link>
-            <Link to="/legal/cookie-policy">Cookie Policy</Link>
+            <Link to="/legal/imprint">{lang === "de" ? "Impressum" : "Imprint"}</Link>
+            <Link to="/legal/privacy-policy">{lang === "de" ? "Datenschutz" : "Privacy Policy"}</Link>
+            <Link to="/legal/cookie-policy">{lang === "de" ? "Cookie-Hinweise" : "Cookie Policy"}</Link>
           </div>
           <Link className="footer-cta glow-button" to="/potential-analysis">
             AGENT PLATFORM
@@ -4288,50 +4290,33 @@ function ContactPage() {
   );
 }
 
-function LegalPage({ type }) {
-  const isPrivacy = type === "privacy";
-  const title = isPrivacy ? "Privacy policy" : "Cookie policy";
-  const sections = isPrivacy
-    ? [
-        ["1. Information we collect", "When you visit this website, certain information may be collected automatically. If you choose to contact us, we may collect personal details such as your name, email address, or project information."],
-        ["2. How we use your information", "Information is used to respond to inquiries, provide services, and improve the content and functionality of this website."],
-        ["3. Cookies & analytics", "This website may use cookies or analytics tools to understand general usage and improve performance."],
-        ["4. Sharing of information", "Your information is not sold, rented, or traded with third parties."],
-        ["5. Data retention", "Personal information is stored only as long as necessary or as required by law."],
-        ["6. Security", "Reasonable technical and organizational measures are in place to protect your information."],
-        ["7. Your rights", "You may request a copy of your data, ask for corrections or deletion, and withdraw consent."],
-        ["8. Contact", "If you have questions, contact nexumintelligence@outlook.com."],
-      ]
-    : [
-        ["1. What are cookies?", "Cookies are small text files stored on your device when you visit a website."],
-        ["2. How we use cookies", "This website may use cookies for essential functionality, analytics, and preferences."],
-        ["3. Third-party cookies", "Some cookies may come from trusted third-party services such as analytics or embedded content."],
-        ["4. Managing cookies", "You can control or disable cookies through your browser settings."],
-        ["5. Consent", "By continuing to use this website, you consent to the use of cookies as outlined in this policy."],
-        ["6. Updates", "This Cookie Policy may be updated occasionally."],
-        ["7. Contact", "If you have questions, contact nexumintelligence@outlook.com."],
-      ];
+const LEGAL_NAV = { de: [["imprint", "Impressum"], ["privacy", "Datenschutz"], ["cookie", "Cookie-Hinweise"]], en: [["imprint", "Imprint"], ["privacy", "Privacy policy"], ["cookie", "Cookie notice"]] };
+const LEGAL_PATH = { imprint: "/legal/imprint", privacy: "/legal/privacy-policy", cookie: "/legal/cookie-policy" };
 
+function LegalPage({ type }) {
+  const { lang } = useI18n();
+  const l = lang === "de" ? "de" : "en";
+  const doc = legalText(type, l);
   return (
     <Shell>
       <main>
         <article className="article-page legal">
-          <div className="article-meta">Dec 2025</div>
-          <h1>{title}</h1>
-          <p className="article-lede">
-            {isPrivacy
-              ? "Your privacy matters. This policy explains how we collect, use, and protect your information when you interact with this website."
-              : "This website uses cookies to improve your browsing experience. This policy explains what cookies are, how they are used here, and how you can manage them."}
-          </p>
-          {sections.map(([heading, text]) => (
+          <div className="article-meta">{COMPANY.name}</div>
+          <h1>{doc.title}</h1>
+          <p className="article-lede">{doc.lede}</p>
+          {doc.sections.map(([heading, paragraphs]) => (
             <section key={heading}>
               <h2>{heading}</h2>
-              <p>{text}</p>
+              {paragraphs.map((p, i) => (Array.isArray(p)
+                ? <ul key={i}>{p.map((item) => <li key={item}>{item}</li>)}</ul>
+                : <p key={i}>{p}</p>))}
             </section>
           ))}
-          <Link className="secondary-button" to={isPrivacy ? "/legal/cookie-policy" : "/legal/privacy-policy"}>
-            {isPrivacy ? "Cookie policy ›" : "‹ Privacy policy"}
-          </Link>
+          <nav className="legal-nav">
+            {LEGAL_NAV[l].filter(([key]) => key !== type).map(([key, label]) => (
+              <Link key={key} className="secondary-button" to={LEGAL_PATH[key]}>{label} ›</Link>
+            ))}
+          </nav>
         </article>
       </main>
     </Shell>
@@ -4391,6 +4376,7 @@ function Routes() {
   if (path === "/contact") return <ContactPage />;
   if (path === "/legal/privacy-policy") return <LegalPage type="privacy" />;
   if (path === "/legal/cookie-policy") return <LegalPage type="cookie" />;
+  if (path === "/legal/imprint" || path === "/impressum") return <LegalPage type="imprint" />;
   return <NotFoundPage />;
 }
 
