@@ -4170,63 +4170,117 @@ function BlogPostPage() {
   );
 }
 
-function ContactPage() {
-  const [sent, setSent] = useState(false);
+// Call request instead of a booking calendar: the visitor picks the weekdays and time
+// slots that suit them; the request goes to /api/lead (Supabase `leads` + sales e-mail).
+const CALL_DAYS = [["mon", "Mon"], ["tue", "Tue"], ["wed", "Wed"], ["thu", "Thu"], ["fri", "Fri"]];
+const CALL_SLOTS = ["08:00–10:00", "10:00–12:00", "12:00–14:00", "14:00–16:00", "16:00–18:00"];
+const HONEYPOT_FIELDS = ["website", "company", "message", "subject", "title", "description", "feedback", "notes", "details", "remarks", "comments"];
 
-  function submit(event) {
+function ChipGroup({ legend, options, value, onChange }) {
+  const toggle = (key) => onChange((cur) => (cur.includes(key) ? cur.filter((v) => v !== key) : [...cur, key]));
+  return (
+    <fieldset className="full chip-group">
+      <legend>{legend}</legend>
+      <div>
+        {options.map(([key, label]) => (
+          <button key={key} type="button" className={`chip ${value.includes(key) ? "is-on" : ""}`} aria-pressed={value.includes(key)} onClick={() => toggle(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function ContactPage() {
+  const { lang } = useI18n();
+  const [days, setDays] = useState([]);
+  const [slots, setSlots] = useState([]);
+  const [state, setState] = useState("idle"); // idle | sending | sent | error
+  const [err, setErr] = useState("");
+  const timezone = useMemo(() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ""; } }, []);
+
+  async function submit(event) {
     event.preventDefault();
-    setSent(true);
+    const form = new FormData(event.currentTarget);
+    if (HONEYPOT_FIELDS.some((f) => String(form.get(f) || "").trim())) { setState("sent"); return; }
+    if (!days.length || !slots.length) { setErr("Please choose at least one day and one time slot."); return; }
+    setErr("");
+    setState("sending");
+    const payload = {
+      source: "contact",
+      lang,
+      contact: {
+        name: form.get("Name"), email: form.get("Email"), company: form.get("Company"), phone: form.get("Phone"),
+        challenge: form.get("Details"), consent: form.get("Consent") === "on",
+      },
+      request: { topic: form.get("Topic"), budget: form.get("Budget") },
+      availability: { days, slots, timezone },
+    };
+    try {
+      const res = await fetch("/api/lead", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setState("sent");
+    } catch (e) {
+      setState("error");
+      setErr("Sending failed. Please try again or write to info@nexum-intelligence.com.");
+    }
   }
 
   return (
     <Shell>
       <main>
-        <SubHero label="Let’s Talk" title="We're Here To Help" text="Our team is ready to support you with expert advice & solutions." />
-        <div className="contact-hero-actions">
-          <Link className="primary-button glow-button contact-platform-button" to="/potential-analysis">
-            AGENT PLATFORM <ArrowRight size={18} />
-          </Link>
-        </div>
+        <SubHero label="Let’s Talk" title="Request a Strategy Call" text="Tell us about your project and when it suits you — we will confirm a time by e-mail." />
         <section className="contact-section">
+          {state === "sent" ? (
+            <div className="contact-form contact-done">
+              <h2><Check size={22} /> Thank you — your request is in.</h2>
+              <p>We will get back to you within 24 business hours with a time that matches your availability.</p>
+              <Link className="secondary-button" to="/use-case-demo">Explore the live demo meanwhile</Link>
+            </div>
+          ) : (
           <form className="contact-form" onSubmit={submit}>
-            <label>Name *<input required name="Name" placeholder="David Johnson" autoComplete="name" /></label>
-            <label>Email *<input required type="email" name="Email" placeholder="example@mail.com" autoComplete="email" /></label>
-            <label>Company Name *<input required name="Company" placeholder="Ex. StaticMania" autoComplete="organization" /></label>
-            <label>Select Service *
-              <select required name="Service" defaultValue="">
-                <option value="" disabled>Select Your Service</option>
-                <option>Analytics & Reporting</option>
-                <option>Brand Strategy</option>
-                <option>Event Planning</option>
-                <option>Advertising Campaigns</option>
-                <option>Consulting Services</option>
+            <label>Name *<input required name="Name" placeholder="David Johnson" autoComplete="name" maxLength={120} /></label>
+            <label>Email *<input required type="email" name="Email" placeholder="example@mail.com" autoComplete="email" maxLength={200} /></label>
+            <label>Company Name *<input required name="Company" placeholder="Your company" autoComplete="organization" maxLength={160} /></label>
+            <label>Phone<input type="tel" name="Phone" placeholder="+49 …" autoComplete="tel" maxLength={40} /></label>
+            <label>Topic *
+              <select required name="Topic" defaultValue="">
+                <option value="" disabled>Select a topic</option>
+                <option>Beta access to the Agent Platform</option>
+                <option>AI automation project</option>
+                <option>Strategy & consulting</option>
+                <option>Partnership</option>
+                <option>Other</option>
               </select>
             </label>
-            <label>Project Budget *
-              <select required name="Budget" defaultValue="">
-                <option value="" disabled>Select Your Range</option>
-                <option>Under $10.000</option>
-                <option>$10.000 - $25.000</option>
-                <option>$25.000 - $50.000</option>
-                <option>Above $50.000</option>
-                <option>Custom Budget</option>
+            <label>Project Budget
+              <select name="Budget" defaultValue="">
+                <option value="">Not sure yet</option>
+                <option>Under €10.000</option>
+                <option>€10.000 – €25.000</option>
+                <option>€25.000 – €50.000</option>
+                <option>Above €50.000</option>
               </select>
             </label>
-            <label className="full">Project Details<textarea name="Name" rows="6" placeholder="Tell us more about your project" /></label>
-            {["website", "company", "message", "subject", "title", "description", "feedback", "notes", "details", "remarks", "comments"].map((field) => (
-              <input key={field} className="hp-field" name={field} tabIndex="-1" autoComplete="off" />
+            <ChipGroup legend="Which weekdays suit you best? *" options={CALL_DAYS} value={days} onChange={setDays} />
+            <ChipGroup legend={`Preferred time slots *${timezone ? ` (${timezone})` : ""}`} options={CALL_SLOTS.map((s) => [s, s])} value={slots} onChange={setSlots} />
+            <label className="full">Project Details<textarea name="Details" rows="5" placeholder="Tell us more about your project" maxLength={4000} /></label>
+            <label className="full consent"><input type="checkbox" name="Consent" required /><span>I agree that NEXUM Intelligence stores my details to arrange the call (see <Link to="/legal/privacy-policy">privacy policy</Link>). *</span></label>
+            {HONEYPOT_FIELDS.map((field) => (
+              <input key={field} className="hp-field" name={field} tabIndex="-1" autoComplete="off" aria-hidden="true" />
             ))}
-            <button className="primary-button" type="submit">Submit <ArrowRight size={18} /></button>
-            <p className="muted">We will contact you within 24 business hours.</p>
-            {sent && <div className="success">Thanks. Your request was captured locally in this clone.</div>}
+            {err && <p className="form-error full" role="alert">{err}</p>}
+            <button className="primary-button glow-button" type="submit" disabled={state === "sending"}>{state === "sending" ? "Sending…" : "Request call"} <ArrowRight size={18} /></button>
+            <p className="muted">We will confirm a time within 24 business hours.</p>
           </form>
+          )}
           <aside className="contact-card">
             <h2>Ready to Build Your AI Advantage?</h2>
             <p>Stop managing tasks. Start managing systems.</p>
-            <div><MapPin size={20} />58499 Alexys Highway Suite 678, NR, Nevada, UK</div>
-            <a href="tel:+1234567890"><Phone size={20} />+1 234 567 890</a>
-            <a href="mailto:customer@agencyjoy.com"><Mail size={20} />info@nexum-intelligence.com</a>
-            <a href="mailto:client@agencyjoy.com"><Mail size={20} />client@nexum-intelligence.com</a>
+            <a href="mailto:info@nexum-intelligence.com"><Mail size={20} />info@nexum-intelligence.com</a>
+            <Link className="secondary-button" to="/use-case-demo">Try the live demo</Link>
           </aside>
         </section>
       </main>

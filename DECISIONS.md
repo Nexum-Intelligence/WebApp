@@ -133,3 +133,14 @@ Keyframe alle 4 Frames umkodiert (Desktop 1920px 5,9 MB, Mobil 960px 2 MB, Stand
 89 KB). Lite-Modus und `prefers-reduced-motion` zeigen das Standbild. Partikelkugel und
 3D-Logo sind in `archive/landing-2026-10-08/` wiederverwendbar abgelegt; der komplette
 vorherige Stand liegt im Git-Tag `archive/landing-2026-10-08`.
+
+## 2026-10-09: Beta ohne Login, Rueckruf-Anfrage statt Buchungskalender
+
+Waehrend der Beta sind Sign-in/Sign-up ausgeblendet (`VITE_AUTH_OPEN=true` blendet sie
+wieder ein). Alle "Book a call"-Buttons fuehren auf `/contact` (oder `VITE_BOOKING_URL`).
+Statt eines Kalenders waehlen Interessenten Wochentage (Mo-Fr) und Zeitfenster
+(2-Stunden-Bloecke 08-18 Uhr, mit Browser-Zeitzone); der Termin wird per E-Mail
+bestaetigt. Die Anfrage geht ueber `/api/lead` in die Tabelle `leads`
+(Migration `20261009000000_nexum_leads.sql`, kein Browserzugriff) und optional per
+Resend an `SALES_EMAIL`. Ist ein Kanal konfiguriert, aber nichts zugestellt, antwortet
+die API mit 502, damit keine Anfrage still verloren geht.

@@ -48,6 +48,9 @@
 - [ ] Connector-Secrets in Supabase Vault statt in `company_records`.
 - [ ] Mobile-Feinschliff (Owner: spaeter).
 
+- [ ] Migration `20261009000000_nexum_leads.sql` live ausfuehren; optional `RESEND_API_KEY`,
+  `SALES_EMAIL`, `LEAD_FROM_EMAIL` in Vercel setzen (E-Mail bei neuer Anfrage).
+
 ## Danach
 
 - [ ] Formular-Backend oder Integrationsziel klaeren.
@@ -159,6 +162,9 @@
   Build-Command, Output-Verzeichnis und SPA-Rewrites ergaenzt.
   Produktionsbuild erfolgreich; lokale Haupt-Routen ueber Dev-Server mit
   `200` geprueft.
+
+- [x] Beta: Login ausgeblendet, Book-a-call -> Kontaktformular mit Wunsch-Wochentagen und
+  Zeitfenstern (`/api/lead`, Migration `20261009000000_nexum_leads.sql`, Unit-Tests `tests/unit/lead.test.mjs`).
 
 ## Blockiert
 
