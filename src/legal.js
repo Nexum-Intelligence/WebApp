@@ -5,8 +5,8 @@
 
 export const COMPANY = {
   name: "NEXUM Intelligence GbR",
-  street: "Freistraße 49",
-  city: "89191 Nellingen",
+  street: "Geitauer Straße 4",
+  city: "81379 München",
   country: "Deutschland",
   partners: "Melina Kühn, Luise Rimola",
   email: "nexumintelligence@outlook.com",
@@ -87,7 +87,7 @@ export const LEGAL = {
           "Sie haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18) und Datenübertragbarkeit (Art. 20). Eine erteilte Einwilligung können Sie jederzeit mit Wirkung für die Zukunft widerrufen (Art. 7 Abs. 3 DSGVO).",
           "Widerspruchsrecht: Soweit wir Daten auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO verarbeiten, können Sie aus Gründen, die sich aus Ihrer besonderen Situation ergeben, jederzeit widersprechen (Art. 21 DSGVO).",
           `Für alle Anliegen genügt eine E-Mail an ${COMPANY.email}.`,
-          "Sie können sich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren, zum Beispiel bei der für uns zuständigen Behörde: Der Landesbeauftragte für den Datenschutz und die Informationsfreiheit Baden-Württemberg, Lautenschlagerstraße 20, 70173 Stuttgart.",
+          "Sie können sich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren, zum Beispiel bei der für uns zuständigen Behörde: Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach.",
         ]],
         ["10. Pflicht zur Bereitstellung und automatisierte Entscheidungen", [
           "Sie sind nicht verpflichtet, uns Daten bereitzustellen. Ohne die Pflichtangaben im Formular können wir Ihre Anfrage jedoch nicht bearbeiten. Eine automatisierte Entscheidungsfindung einschließlich Profiling im Sinne von Art. 22 DSGVO findet nicht statt.",
@@ -173,7 +173,7 @@ export const LEGAL = {
           "You have the right of access (Art. 15 GDPR), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18) and data portability (Art. 20). You can withdraw any consent at any time with effect for the future (Art. 7(3) GDPR).",
           "Right to object: where we process data on the basis of Art. 6(1)(f) GDPR, you may object at any time on grounds relating to your particular situation (Art. 21 GDPR).",
           `An e-mail to ${COMPANY.email} is all it takes.`,
-          "You can also lodge a complaint with a data protection supervisory authority, for example the authority responsible for us: Der Landesbeauftragte für den Datenschutz und die Informationsfreiheit Baden-Württemberg, Lautenschlagerstraße 20, 70173 Stuttgart, Germany.",
+          "You can also lodge a complaint with a data protection supervisory authority, for example the authority responsible for us: Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach, Germany.",
         ]],
         ["10. Obligation to provide data and automated decisions", ["You are not obliged to provide data, but without the required form fields we cannot handle your request. We do not use automated decision-making, including profiling, within the meaning of Art. 22 GDPR."]],
         ["11. Changes", [`We update this policy when our website or the law changes. ${UPDATED.en}.`]],
